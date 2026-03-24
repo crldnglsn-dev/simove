@@ -6,7 +6,7 @@ SIMOVE is a mobile application designed for MC taxi drivers, delivery riders, an
 
 ## ✨ Features
 
-- ➕ Input fare and customer payment per ride  
+- ➕ Input fare and customer payment per ride (automatically calculates tip)
 - 💰 Automatic calculation of:
   - Net earnings  
   - Platform deductions  
