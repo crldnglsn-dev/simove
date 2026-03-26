@@ -46,16 +46,6 @@ The APK file is available in the **Releases** section of this repository.
 
 ---
 
-## 📸 Screenshots
-
-<img width="300" height="500" alt="image" src="https://github.com/user-attachments/assets/c2c374b5-2e54-4635-b418-191bc00f9ec0" />
-<img width="300" height="500" alt="image" src="https://github.com/user-attachments/assets/1a66bd27-e143-4483-ad09-be493e652829" />
-<img width="300" height="500" alt="image" src="https://github.com/user-attachments/assets/d3fe0009-b251-4742-8fe9-69e6319f9e26" />
-<img width="300" height="500" alt="image" src="https://github.com/user-attachments/assets/1e42e0c4-0fa6-40bf-b5bb-513e538e6913" />
-<img width="300" height="500" alt="image" src="https://github.com/user-attachments/assets/41f95528-140b-4aec-a218-1108404e4d22" />
-
----
-
 ## 🚀 How to Use
 
 1. Download and install the APK from Releases  
