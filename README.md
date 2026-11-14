@@ -17,20 +17,20 @@ stores passenger names, phone numbers or addresses.
 |---|---|
 | Flutter UI, SQLite storage, manual entry, tips, expenses, reports | Implemented and unit-tested on this machine |
 | Booking state machine, OCR parser, duplicate prevention | Implemented; 47 automated tests pass |
-| Android screen capture + ML Kit OCR + foreground-app gating | Implemented; end-to-end flow verified on an Android 16 emulator with a synthetic Angkas booking page, then on a real phone |
+| Android screen capture + ML Kit OCR + foreground-app gating | Implemented; emulator + real-device (TECNO LJ6) validation |
 | Live Angkas OCR accuracy on a real phone | **Verified on hardware** — TECNO LJ6 (Android 16 / API 36), Angkas package `com.angkas.drivernew` |
 | Debug APK | `build/app/outputs/flutter-apk/app-debug.apk` |
-| Release APK | `build/app/outputs/flutter-apk/app-release.apk` |
+| Release APK | `build/app/outputs/flutter-apk/app-release.apk` (v1.0.2 — published) |
 
-Verified end to end on the emulator (Chrome showing a test page that mimics the
-Angkas accepted-booking panel): whole-screen consent, foreground gating,
-ML Kit OCR, parsing of `Total Earnings ₱75.00`, `Fare To Collect ₱95.00` and
-`Cash`, one transaction in SQLite, dashboard/report totals, duplicate
-suppression across many frames, a second booking creating a new record, the
-floating overlay, and tip/expense entry. Real Angkas screens and a physical
-device are still untested.
+### Release v1.0.2
 
-Validated on the real phone (TECNO LJ6, Android 16, Angkas 2.x package
+- Published on GitHub: <https://github.com/crldnglsn-dev/simove/releases/tag/v1.0.2>
+- Contains the release APK (`app-release.apk`) for other riders to download.
+- The release uses the **remove-background logo mark** (`assets/logo/`), the plain-language monitoring/income UI, quick add booking/expense, Reports date + month pickers, and payment methods limited to **Cash / E-wallet / Card**.
+
+Built by **Carl John Dinglasan**.
+
+Validated on the real phone (TECNO LJ6, Android 16, Angkas package
 `com.angkas.drivernew`) on 2026-11-14:
 
 - Auto-accepted booking panel read correctly: `Proceed to Pickup`, `Total
@@ -73,9 +73,11 @@ installed and tested. Replace the signing config in
 - **Expenses** – gasoline, maintenance, parking, food and other; net income is
   recorded earnings minus expenses.
 - **Dashboard** – today, week, month, tips, fare collected, expenses, net income
-  and pending detections.
-- **Reports** – daily bars, payment-method breakdown, expense breakdown, CSV and
-  JSON export through the Android share sheet.
+  and pending detections; plain-language monitoring status with a health check.
+- **Quick add** – add a booking or an expense from the Dashboard and from the
+  Transactions tab.
+- **Reports** – daily bars, payment-method breakdown, expense breakdown, date and
+  month pickers, CSV and JSON export through the Android share sheet.
 - **Floating tracker** – optional movable overlay with today's earnings and the
   latest booking.
 - **Dark navy / cyan financial UI**, four tabs, offline-only.
