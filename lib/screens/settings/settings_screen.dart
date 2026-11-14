@@ -459,7 +459,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const _SettingsTile(
                 icon: Icons.info_outline,
                 title: 'SIMOVE',
-                subtitle: 'Version 1.0.0 • Offline-first earnings tracker',
+                subtitle: 'Carl John Dinglasan • Version 1.0.0 • Offline-first earnings tracker',
               ),
               const _SettingsTile(
                 icon: Icons.two_wheeler_outlined,
