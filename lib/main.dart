@@ -83,8 +83,7 @@ class StartupErrorApp extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.error_outline,
-                    color: AppColors.red, size: 42),
+                const Icon(Icons.error_outline, color: AppColors.red, size: 42),
                 const SizedBox(height: 18),
                 const Text(
                   'SIMOVE could not start',

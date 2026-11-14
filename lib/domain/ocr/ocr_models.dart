@@ -82,7 +82,8 @@ class ScreenObservation {
       screenWidth: (map['screenWidth'] as num?)?.toInt() ?? 1080,
       screenHeight: (map['screenHeight'] as num?)?.toInt() ?? 2400,
       capturedAt: DateTime.fromMillisecondsSinceEpoch(
-        ((map['timestamp'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch),
+        ((map['timestamp'] as num?)?.toInt() ??
+            DateTime.now().millisecondsSinceEpoch),
       ),
       foregroundPackage: map['packageName'] as String?,
       frameId: (map['frameId'] as num?)?.toInt(),
@@ -105,6 +106,7 @@ class ParsedBookingScreen {
     required this.signature,
     required this.signals,
     this.bookingFingerprint,
+    this.isHistoricalDetail = false,
   });
 
   final bool hasAcceptedSignal;
@@ -122,6 +124,10 @@ class ParsedBookingScreen {
   /// Salted hash of the stable booking-panel text, used to distinguish a new
   /// ride from the same ride reopened. Null when no stable text was found.
   final String? bookingFingerprint;
+
+  /// True for a past-trip detail sheet. Earnings from it may update the open
+  /// booking, but must not create one on their own.
+  final bool isHistoricalDetail;
 
   bool get hasEarnings =>
       totalEarningsCents != null || fareToCollectCents != null;
@@ -145,17 +151,23 @@ class OcrSignature {
 
   static String compute(ScreenObservation observation) {
     final height = math.max(observation.screenHeight, 1);
-    final relevant = observation.lines.where((line) {
-      final relativeTop = line.top / height;
-      if (relativeTop < 0.05 || relativeTop > 0.95) return false;
-      final text = line.text.trim();
-      if (text.isEmpty) return false;
-      if (RegExp(r'^\d{1,2}:\d{2}$').hasMatch(text)) return false;
-      if (RegExp(r'^[\d\s%+\-:APM]+$', caseSensitive: false).hasMatch(text)) {
-        return false;
-      }
-      return true;
-    }).map((line) => line.text).join('|');
+    final relevant = observation.lines
+        .where((line) {
+          final relativeTop = line.top / height;
+          if (relativeTop < 0.05 || relativeTop > 0.95) return false;
+          final text = line.text.trim();
+          if (text.isEmpty) return false;
+          if (RegExp(r'^\d{1,2}:\d{2}$').hasMatch(text)) return false;
+          if (RegExp(
+            r'^[\d\s%+\-:APM]+$',
+            caseSensitive: false,
+          ).hasMatch(text)) {
+            return false;
+          }
+          return true;
+        })
+        .map((line) => line.text)
+        .join('|');
     return hashText('$salt::$relevant');
   }
 
@@ -168,18 +180,56 @@ class OcrSignature {
   /// Builds a fingerprint from stable booking-panel lines only. Earnings,
   /// buttons, labels, clocks and map pins are discarded, leaving text such as
   /// the pickup/drop-off area. Only the salted hash leaves this function.
-  static String? bookingFingerprint(
-    List<OcrLine> lines,
-    int screenHeight,
-  ) {
+  static String? bookingFingerprint(List<OcrLine> lines, int screenHeight) {
     const uiWords = [
-      'PICKUP', 'DROPOFF', 'DROP', 'OFF', 'PROCEED', 'OTW', 'ONTHEWAY',
-      'WAY', 'TOTAL', 'EARNINGS', 'EARNING', 'FARE', 'COLLECT', 'PAYMENT',
-      'CASH', 'GCASH', 'MAYA', 'PAYMAYA', 'WALLET', 'CARD', 'ACCEPT',
-      'ACCEPTED', 'AUTO', 'BOOKING', 'CANCEL', 'CANCELLED', 'STATUS',
-      'ONLINE', 'RATE', 'COMPLETED', 'COMPLETE', 'ARRIVED', 'NAME',
-      'PASSENGER', 'CALL', 'CHAT', 'NAVIGATE', 'CONFIRM', 'BACK', 'HOME',
-      'ESTIMATED', 'DISTANCE', 'KM', 'MIN', 'MINS', 'PAY', 'COLLECT', 'METHOD',
+      'PICKUP',
+      'DROPOFF',
+      'DROP',
+      'OFF',
+      'PROCEED',
+      'OTW',
+      'ONTHEWAY',
+      'WAY',
+      'TOTAL',
+      'EARNINGS',
+      'EARNING',
+      'FARE',
+      'COLLECT',
+      'PAYMENT',
+      'CASH',
+      'GCASH',
+      'MAYA',
+      'PAYMAYA',
+      'WALLET',
+      'CARD',
+      'ACCEPT',
+      'ACCEPTED',
+      'AUTO',
+      'BOOKING',
+      'CANCEL',
+      'CANCELLED',
+      'STATUS',
+      'ONLINE',
+      'RATE',
+      'COMPLETED',
+      'COMPLETE',
+      'ARRIVED',
+      'NAME',
+      'PASSENGER',
+      'CALL',
+      'CHAT',
+      'NAVIGATE',
+      'CONFIRM',
+      'BACK',
+      'HOME',
+      'ESTIMATED',
+      'DISTANCE',
+      'KM',
+      'MIN',
+      'MINS',
+      'PAY',
+      'COLLECT',
+      'METHOD',
     ];
     final basis = <String>[];
     for (final line in lines) {
@@ -195,7 +245,10 @@ class OcrSignature {
       if (RegExp(r'^[\d\s.,:+\-–—/()%]+$').hasMatch(text)) continue;
       final letters = RegExp(r'[A-Z]').allMatches(text).length;
       if (letters < 3) continue;
-      final normalized = text.replaceAll(RegExp(r'[^A-Z0-9 ]'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+      final normalized = text
+          .replaceAll(RegExp(r'[^A-Z0-9 ]'), ' ')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
       if (normalized.length < 4) continue;
       basis.add(normalized);
     }

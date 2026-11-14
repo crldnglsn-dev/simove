@@ -34,14 +34,14 @@ enum BookingState {
       this == BookingState.bookingEnded;
 
   String get label => switch (this) {
-        BookingState.idle => 'Idle',
-        BookingState.bookingDetected => 'Booking detected',
-        BookingState.waitingForEarnings => 'Waiting for earnings',
-        BookingState.earningsDetected => 'Earnings detected',
-        BookingState.recorded => 'Recorded',
-        BookingState.bookingEnded => 'Booking ended',
-        BookingState.errorRequiresReview => 'Needs review',
-      };
+    BookingState.idle => 'Idle',
+    BookingState.bookingDetected => 'Booking detected',
+    BookingState.waitingForEarnings => 'Waiting for earnings',
+    BookingState.earningsDetected => 'Earnings detected',
+    BookingState.recorded => 'Recorded',
+    BookingState.bookingEnded => 'Booking ended',
+    BookingState.errorRequiresReview => 'Needs review',
+  };
 }
 
 enum DetectionSource {
@@ -58,11 +58,11 @@ enum DetectionSource {
   }
 
   String get label => switch (this) {
-        DetectionSource.ocr => 'Auto-detected',
-        DetectionSource.manual => 'Manual entry',
-        DetectionSource.notification => 'Notification',
-        DetectionSource.imported => 'Imported',
-      };
+    DetectionSource.ocr => 'Auto-detected',
+    DetectionSource.manual => 'Manual entry',
+    DetectionSource.notification => 'Notification',
+    DetectionSource.imported => 'Imported',
+  };
 }
 
 enum TipType {
@@ -78,10 +78,10 @@ enum TipType {
   }
 
   String get label => switch (this) {
-        TipType.cash => 'Cash',
-        TipType.digital => 'Digital',
-        TipType.other => 'Other',
-      };
+    TipType.cash => 'Cash',
+    TipType.digital => 'Digital',
+    TipType.other => 'Other',
+  };
 }
 
 /// A single booking / earning record.
@@ -184,23 +184,27 @@ class BookingTransaction {
       bookingStatus: bookingStatus ?? this.bookingStatus,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
-      platformEarningsCents:
-          clearPlatformEarnings ? null : platformEarningsCents ?? this.platformEarningsCents,
-      fareToCollectCents:
-          clearFareToCollect ? null : fareToCollectCents ?? this.fareToCollectCents,
-      paymentMethod:
-          clearPaymentMethod ? null : paymentMethod ?? this.paymentMethod,
+      platformEarningsCents: clearPlatformEarnings
+          ? null
+          : platformEarningsCents ?? this.platformEarningsCents,
+      fareToCollectCents: clearFareToCollect
+          ? null
+          : fareToCollectCents ?? this.fareToCollectCents,
+      paymentMethod: clearPaymentMethod
+          ? null
+          : paymentMethod ?? this.paymentMethod,
       tipCents: tipCents ?? this.tipCents,
       tipType: tipType ?? this.tipType,
-      tipIncludedInPlatformEarnings: tipIncludedInPlatformEarnings ??
-          this.tipIncludedInPlatformEarnings,
+      tipIncludedInPlatformEarnings:
+          tipIncludedInPlatformEarnings ?? this.tipIncludedInPlatformEarnings,
       detectionSource: detectionSource ?? this.detectionSource,
       detectionConfidence: clearDetectionConfidence
           ? null
           : detectionConfidence ?? this.detectionConfidence,
       notes: clearNotes ? null : notes ?? this.notes,
-      screenSignature:
-          clearScreenSignature ? null : screenSignature ?? this.screenSignature,
+      screenSignature: clearScreenSignature
+          ? null
+          : screenSignature ?? this.screenSignature,
       bookingFingerprint: clearBookingFingerprint
           ? null
           : bookingFingerprint ?? this.bookingFingerprint,
@@ -224,7 +228,9 @@ class BookingTransaction {
       'payment_method': paymentMethod,
       'tip_cents': tipCents,
       'tip_type': tipType.name,
-      'tip_included_in_platform_earnings': tipIncludedInPlatformEarnings ? 1 : 0,
+      'tip_included_in_platform_earnings': tipIncludedInPlatformEarnings
+          ? 1
+          : 0,
       'detection_source': detectionSource.name,
       'detection_confidence': detectionConfidence,
       'notes': notes,
@@ -241,10 +247,12 @@ class BookingTransaction {
       id: map['id'] as int?,
       bookingReference: map['booking_reference'] as String? ?? '',
       bookingStatus: BookingState.fromDb(map['booking_status'] as String?),
-      createdAt:
-          DateTime.fromMillisecondsSinceEpoch((map['created_at'] as int?) ?? 0),
-      updatedAt:
-          DateTime.fromMillisecondsSinceEpoch((map['updated_at'] as int?) ?? 0),
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+        (map['created_at'] as int?) ?? 0,
+      ),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(
+        (map['updated_at'] as int?) ?? 0,
+      ),
       platformEarningsCents: map['platform_earnings_cents'] as int?,
       fareToCollectCents: map['fare_to_collect_cents'] as int?,
       paymentMethod: map['payment_method'] as String?,
@@ -252,7 +260,9 @@ class BookingTransaction {
       tipType: TipType.fromDb(map['tip_type'] as String?),
       tipIncludedInPlatformEarnings:
           ((map['tip_included_in_platform_earnings'] as int?) ?? 0) == 1,
-      detectionSource: DetectionSource.fromDb(map['detection_source'] as String?),
+      detectionSource: DetectionSource.fromDb(
+        map['detection_source'] as String?,
+      ),
       detectionConfidence: (map['detection_confidence'] as num?)?.toDouble(),
       notes: map['notes'] as String?,
       screenSignature: map['screen_signature'] as String?,
@@ -260,7 +270,8 @@ class BookingTransaction {
       earningsDetectedAt: map['earnings_detected_at'] == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(
-              map['earnings_detected_at'] as int),
+              map['earnings_detected_at'] as int,
+            ),
       endedAt: map['ended_at'] == null
           ? null
           : DateTime.fromMillisecondsSinceEpoch(map['ended_at'] as int),

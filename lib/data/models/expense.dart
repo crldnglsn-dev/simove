@@ -30,21 +30,22 @@ class Expense {
   }
 
   Map<String, Object?> toDbMap() => {
-        if (id != null) 'id': id,
-        'category': category,
-        'amount_cents': amountCents,
-        'description': description,
-        'created_at': createdAt.millisecondsSinceEpoch,
-      };
+    if (id != null) 'id': id,
+    'category': category,
+    'amount_cents': amountCents,
+    'description': description,
+    'created_at': createdAt.millisecondsSinceEpoch,
+  };
 
   static Expense fromDbMap(Map<String, Object?> map) => Expense(
-        id: map['id'] as int?,
-        category: map['category'] as String? ?? 'Other',
-        amountCents: (map['amount_cents'] as int?) ?? 0,
-        description: map['description'] as String?,
-        createdAt:
-            DateTime.fromMillisecondsSinceEpoch((map['created_at'] as int?) ?? 0),
-      );
+    id: map['id'] as int?,
+    category: map['category'] as String? ?? 'Other',
+    amountCents: (map['amount_cents'] as int?) ?? 0,
+    description: map['description'] as String?,
+    createdAt: DateTime.fromMillisecondsSinceEpoch(
+      (map['created_at'] as int?) ?? 0,
+    ),
+  );
 }
 
 class ExpenseCategory {

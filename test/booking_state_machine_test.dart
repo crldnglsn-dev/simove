@@ -37,7 +37,15 @@ void main() {
     store = FakeStore();
   });
 
-  DetectionDecision process(DateTime at, {bool expanded = false, String? pickup, String? dropoff, String? total, String? fare, String? payment}) {
+  DetectionDecision process(
+    DateTime at, {
+    bool expanded = false,
+    String? pickup,
+    String? dropoff,
+    String? total,
+    String? fare,
+    String? payment,
+  }) {
     final observation = expanded
         ? earningsScreen(
             at: at,
@@ -66,6 +74,70 @@ void main() {
     expect(store.active!.platformEarningsCents, isNull);
   });
 
+  test('the real earnings history tab never creates a transaction', () {
+    final observation = earningsHistoryScreen(at: start).build();
+    final decision = machine.process(observation, store.active);
+    store.apply(decision);
+
+    expect(decision.action, DetectionAction.none);
+    expect(store.active, isNull);
+    expect(decision.reason, 'No Angkas booking information on screen');
+  });
+
+  test('a past-trip details sheet never creates or duplicates a record', () {
+    // Browsing a finished trip's details without an open booking: even when
+    // the status chip is missed by OCR, the "BOOKING ID" anchor blocks it.
+    final decision = machine.process(
+      tripDetailsScreen(status: null, at: start).build(),
+      null,
+    );
+
+    expect(decision.action, DetectionAction.none);
+    expect(decision.reason, 'No booking detected');
+    expect(store.active, isNull);
+  });
+
+  test('trip details update the open booking instead of duplicating it', () {
+    process(start);
+    final details = machine.process(
+      tripDetailsScreen(
+        status: null,
+        at: start.add(const Duration(minutes: 3)),
+      ).build(),
+      store.active,
+    );
+    store.apply(details);
+
+    expect(details.action, DetectionAction.update);
+    expect(store.active!.id, 1);
+    expect(store.active!.platformEarningsCents, 5590);
+    expect(store.active!.fareToCollectCents, 7600);
+    expect(store.active!.bookingStatus, BookingState.recorded);
+  });
+
+  test('a cancelled trip closes the open booking and keeps its earnings', () {
+    process(start);
+    store.apply(
+      machine.process(
+        tripDetailsScreen(
+          status: null,
+          at: start.add(const Duration(minutes: 3)),
+        ).build(),
+        store.active,
+      ),
+    );
+    final cancelled = machine.process(
+      tripDetailsScreen(at: start.add(const Duration(minutes: 4))).build(),
+      store.active,
+    );
+    store.apply(cancelled);
+
+    expect(cancelled.action, DetectionAction.update);
+    expect(cancelled.reason, 'Booking cancelled');
+    expect(store.active!.bookingStatus, BookingState.bookingEnded);
+    expect(store.active!.platformEarningsCents, 5590);
+  });
+
   test('Test 2: earnings are not invented before the panel is expanded', () {
     process(start);
     process(start.add(const Duration(seconds: 8)));
@@ -77,7 +149,10 @@ void main() {
 
   test('Test 3: expanded panel records the exact displayed values', () {
     process(start);
-    final decision = process(start.add(const Duration(seconds: 20)), expanded: true);
+    final decision = process(
+      start.add(const Duration(seconds: 20)),
+      expanded: true,
+    );
 
     expect(decision.action, DetectionAction.update);
     expect(store.active!.platformEarningsCents, 7500);
@@ -121,11 +196,12 @@ void main() {
 
     // The same booking panel, but the amount rows were missed by OCR (for
     // example a scroll or a transient blur).
-    final partial = ObservationBuilder(at: start.add(const Duration(seconds: 40)))
-      ..line('Proceed to Pickup', top: 560)
-      ..line('Pickup: 123 Mabini Street, Makati', top: 1350)
-      ..line('Drop-off: Ayala Avenue Tower 2', top: 1430)
-      ..line('Total Earnings', top: 1550);
+    final partial =
+        ObservationBuilder(at: start.add(const Duration(seconds: 40)))
+          ..line('Proceed to Pickup', top: 560)
+          ..line('Pickup: 123 Mabini Street, Makati', top: 1350)
+          ..line('Drop-off: Ayala Avenue Tower 2', top: 1430)
+          ..line('Total Earnings', top: 1550);
     final decision = machine.process(partial.build(), store.active);
     store.apply(decision);
 
@@ -196,20 +272,26 @@ void main() {
     expect(store.active!.bookingStatus, BookingState.recorded);
   });
 
-  test('Test 7: a tip is added to platform earnings without double counting', () {
-    process(start);
-    process(start.add(const Duration(seconds: 20)), expanded: true);
+  test(
+    'Test 7: a tip is added to platform earnings without double counting',
+    () {
+      process(start);
+      process(start.add(const Duration(seconds: 20)), expanded: true);
 
-    final withTip = store.active!.copyWith(tipCents: 2000, tipType: TipType.cash);
-    expect(withTip.recordedEarningsCents, 9500);
-    expect(withTip.fareToCollectCents, 9500);
+      final withTip = store.active!.copyWith(
+        tipCents: 2000,
+        tipType: TipType.cash,
+      );
+      expect(withTip.recordedEarningsCents, 9500);
+      expect(withTip.fareToCollectCents, 9500);
 
-    final included = store.active!.copyWith(
-      tipCents: 2000,
-      tipIncludedInPlatformEarnings: true,
-    );
-    expect(included.recordedEarningsCents, 7500);
-  });
+      final included = store.active!.copyWith(
+        tipCents: 2000,
+        tipIncludedInPlatformEarnings: true,
+      );
+      expect(included.recordedEarningsCents, 7500);
+    },
+  );
 
   test('Test 8: incomplete OCR keeps the booking pending for review', () {
     process(start);

@@ -9,6 +9,8 @@ import '../../state/earnings_provider.dart';
 import '../../state/monitoring_provider.dart';
 import '../../state/settings_provider.dart';
 import '../../widgets/common.dart';
+import '../dashboard/monitoring_health_sheet.dart';
+import '../help/income_help_sheet.dart';
 import '../setup/monitoring_setup_sheet.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -62,9 +64,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: $error')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Export failed: $error')));
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -81,9 +82,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (result == null || result.isEmpty) return;
     await monitoring.applyTargetPackage(result);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Monitoring target set to $result')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Monitoring target set to $result')));
   }
 
   Future<void> _clearData(EarningsProvider earnings) async {
@@ -140,6 +141,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             style: TextStyle(fontSize: 11, color: AppColors.textMuted),
           ),
           const SizedBox(height: 18),
+          _MonitoringStatusCard(monitoring: monitoring),
+          const SizedBox(height: 14),
           _Section(
             title: 'Monitoring',
             children: [
@@ -148,14 +151,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 value: settings.autoMonitoring,
                 onChanged: monitoring.isBusy
                     ? null
-                    : (value) => _onAutoMonitoringChanged(
-                          value,
-                          settings,
-                          monitoring,
-                        ),
-                title: const Text('Automatic monitoring'),
+                    : (value) =>
+                          _onAutoMonitoringChanged(value, settings, monitoring),
+                title: const Text('Automatic detection'),
                 subtitle: const Text(
-                  'Remember to resume screen capture when SIMOVE opens.',
+                  'Remembers to resume monitoring when you open SIMOVE.',
                   style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                 ),
               ),
@@ -165,7 +165,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: 'Usage access',
                 subtitle: permissions.usageAccess
                     ? 'Granted — SIMOVE can tell when Angkas is open'
-                    : 'Required to detect the Angkas foreground app',
+                    : 'Required to detect when Angkas is open',
                 trailing: permissions.usageAccess
                     ? const StatusPill(
                         label: 'Granted',
@@ -174,15 +174,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       )
                     : TextButton(
                         onPressed: () => monitoring.openSettings('usage'),
-                        child: const Text('Open'),
+                        child: const Text('Allow'),
                       ),
               ),
               _SettingsTile(
                 icon: Icons.screen_share_outlined,
                 title: 'Screen capture',
                 subtitle: permissions.captureRunning
-                    ? 'Active — visible screen only'
-                    : 'Starts through Android’s consent dialog',
+                    ? 'Active — reading the visible screen only'
+                    : 'Required — starts through Android’s consent dialog',
                 trailing: permissions.captureRunning
                     ? const StatusPill(
                         label: 'Active',
@@ -191,13 +191,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       )
                     : TextButton(
                         onPressed: () => showMonitoringSetup(context),
-                        child: const Text('Setup'),
+                        child: const Text('Start'),
                       ),
               ),
               _SettingsTile(
                 icon: Icons.notifications_active_outlined,
                 title: 'Notifications',
-                subtitle: 'Required for the foreground monitoring notice',
+                subtitle: 'Shows the required monitoring notice',
                 trailing: permissions.notifications
                     ? const StatusPill(
                         label: 'Granted',
@@ -205,15 +205,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         compact: true,
                       )
                     : TextButton(
-                        onPressed: () => monitoring.openSettings('notifications'),
+                        onPressed: () =>
+                            monitoring.openSettings('notifications'),
                         child: const Text('Allow'),
                       ),
               ),
               _SettingsTile(
                 icon: Icons.notifications_outlined,
                 title: 'Notification hints (optional)',
-                subtitle:
-                    'Read Angkas notification titles as a hint. Never used as the only booking source.',
+                subtitle: 'Reads Angkas notification titles as a hint only. Never used alone.',
                 trailing: permissions.notificationListener
                     ? const StatusPill(
                         label: 'On',
@@ -228,126 +228,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               _SettingsTile(
                 icon: Icons.battery_saver_outlined,
-                title: 'Battery optimisation',
+                title: 'Battery: Unrestricted',
                 subtitle: permissions.batteryOptimizationIgnored
-                    ? 'Exempted from battery restrictions'
-                    : 'Optional — helps long shifts stay monitored',
+                    ? 'SIMOVE is exempt from battery restrictions'
+                    : 'On TECNO, choose Unrestricted in App info → Battery',
                 trailing: TextButton(
                   onPressed: () => monitoring.openSettings('battery'),
                   child: const Text('Settings'),
                 ),
               ),
-              const Divider(height: 20),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.apps, size: 20),
-                title: const Text(
-                  'Angkas app package',
-                  style: TextStyle(fontSize: 13.5),
-                ),
-                subtitle: Text(
-                  settings.targetPackage,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textMuted,
-                  ),
-                ),
-                trailing: const Icon(Icons.chevron_right, size: 18),
-                onTap: () => _editTargetPackage(settings, monitoring),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          _Section(
-            title: 'Detection',
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'OCR confidence threshold',
-                      style: TextStyle(fontSize: 13.5),
-                    ),
-                  ),
-                  Text(
-                    '${(settings.minConfidence * 100).round()}%',
-                    style: const TextStyle(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-              Slider(
-                value: settings.minConfidence.clamp(0.35, 0.95),
-                min: 0.35,
-                max: 0.95,
-                divisions: 12,
-                label: '${(settings.minConfidence * 100).round()}%',
-                onChanged: (value) => monitoring.applyConfidence(value),
-              ),
-              const Text(
-                'Higher values require clearer screenshots before earnings are '
-                'saved as verified. Lower-confidence reads stay in review.',
-                style: TextStyle(
-                  fontSize: 10.5,
-                  color: AppColors.textMuted,
-                  height: 1.4,
+              _SettingsTile(
+                icon: Icons.restart_alt,
+                title: 'Auto-start (TECNO / Infinix / itel)',
+                subtitle:
+                    'Allow SIMOVE to keep running after the phone restarts.',
+                trailing: TextButton(
+                  onPressed: () => monitoring.openSettings('app'),
+                  child: const Text('App info'),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 4),
               Container(
-                width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.surfaceElevated,
+                  color: AppColors.gold.withValues(alpha: 0.06),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
+                  border: Border.all(
+                    color: AppColors.gold.withValues(alpha: 0.22),
+                  ),
                 ),
-                child: Column(
+                child: const Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Detection diagnostics',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
+                    Icon(
+                      Icons.phone_android_outlined,
+                      size: 16,
+                      color: AppColors.gold,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'TECNO phones can freeze background apps. In App info → '
+                        'Battery choose Unrestricted, allow Auto-start, and lock '
+                        'SIMOVE in the recent-apps screen.',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color: AppColors.textSecondary,
+                          height: 1.45,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      monitoring.lastReason,
-                      style: const TextStyle(
-                        fontSize: 10.5,
-                        color: AppColors.textMuted,
-                        height: 1.4,
-                      ),
-                    ),
-                    if (monitoring.lastOcrAt != null)
-                      Text(
-                        'Last frame: ${Dates.fullDate.format(monitoring.lastOcrAt!)}',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: AppColors.textMuted,
-                        ),
-                      ),
-                    if (monitoring.lastScreen?.signals.isNotEmpty == true)
-                      Text(
-                        'Signals: ${monitoring.lastScreen!.signals.take(6).join(', ')}',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: AppColors.textMuted,
-                        ),
-                      ),
-                    if (monitoring.activeTransaction != null)
-                      Text(
-                        'Open booking: ${monitoring.activeTransaction!.bookingReference}',
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: AppColors.primary,
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -375,9 +305,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   }
                   await monitoring.setOverlayEnabled(value);
                 },
-                title: const Text('Show earnings over other apps'),
+                title: const Text('Show income over other apps'),
                 subtitle: const Text(
-                  'Movable mini tracker with today’s earnings and monitoring status.',
+                  'Movable mini tracker with today’s income and monitoring status.',
                   style: TextStyle(fontSize: 11, color: AppColors.textMuted),
                 ),
               ),
@@ -389,6 +319,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: const Text('Grant overlay permission'),
                   ),
                 ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          _Section(
+            title: 'Data',
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _exporting ? null : () => _export(csv: true),
+                      icon: const Icon(Icons.table_chart_outlined, size: 18),
+                      label: const Text('Export CSV'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: _exporting ? null : () => _export(csv: false),
+                      icon: const Icon(Icons.data_object_outlined, size: 18),
+                      label: const Text('Backup JSON'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _SettingsTile(
+                icon: Icons.delete_outline,
+                title: 'Clear local data',
+                subtitle:
+                    'Deletes every booking, tip and expense on this phone',
+                trailing: TextButton(
+                  onPressed: () => _clearData(context.read<EarningsProvider>()),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.red),
+                  child: const Text('Clear'),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -426,41 +393,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 14),
           _Section(
-            title: 'Data',
+            title: 'Help',
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed:
-                          _exporting ? null : () => _export(csv: true),
-                      icon: const Icon(Icons.table_chart_outlined, size: 18),
-                      label: const Text('Export CSV'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed:
-                          _exporting ? null : () => _export(csv: false),
-                      icon: const Icon(Icons.data_object_outlined, size: 18),
-                      label: const Text('Backup JSON'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
               _SettingsTile(
-                icon: Icons.delete_outline,
-                title: 'Clear local data',
-                subtitle: 'Deletes every booking, tip and expense on this phone',
-                trailing: TextButton(
-                  onPressed: () => _clearData(context.read<EarningsProvider>()),
-                  style: TextButton.styleFrom(foregroundColor: AppColors.red),
-                  child: const Text('Clear'),
-                ),
+                icon: Icons.help_outline,
+                title: 'How income is computed',
+                subtitle:
+                    'App earnings + tips. Passenger payment is not income.',
+                trailing: const Icon(Icons.chevron_right, size: 18),
+                onTap: () => showIncomeHelp(context),
+              ),
+              _SettingsTile(
+                icon: Icons.monitor_heart_outlined,
+                title: 'Monitoring health check',
+                subtitle: 'See what is working and fix anything that is not.',
+                trailing: const Icon(Icons.chevron_right, size: 18),
+                onTap: () => showMonitoringHealth(context),
               ),
             ],
+          ),
+          const SizedBox(height: 14),
+          _AdvancedSection(
+            settings: settings,
+            monitoring: monitoring,
+            onEditTarget: () => _editTargetPackage(settings, monitoring),
           ),
           const SizedBox(height: 14),
           _Section(
@@ -468,8 +424,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: const [
               _PrivacyPoint(
                 icon: Icons.lock_outline,
-                text:
-                    'OCR runs on-device. Screenshots are never uploaded or saved.',
+                text: 'OCR runs on-device. Screenshots are never uploaded or saved.',
               ),
               _PrivacyPoint(
                 icon: Icons.person_off_outlined,
@@ -509,8 +464,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const _SettingsTile(
                 icon: Icons.two_wheeler_outlined,
                 title: 'Built for Angkas riders',
-                subtitle:
-                    'Automatic booking detection with manual control when OCR cannot read the screen.',
+                subtitle: 'Automatic booking detection with manual control when OCR cannot read the screen.',
               ),
               if (monitoring.notificationHint != null)
                 _SettingsTile(
@@ -519,6 +473,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   subtitle: monitoring.notificationHint!,
                 ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MonitoringStatusCard extends StatelessWidget {
+  const _MonitoringStatusCard({required this.monitoring});
+
+  final MonitoringProvider monitoring;
+
+  @override
+  Widget build(BuildContext context) {
+    final healthy = monitoring.isMonitoring;
+    final color = healthy ? AppColors.green : AppColors.gold;
+    return AppCard(
+      onTap: () => showMonitoringHealth(context),
+      borderColor: color.withValues(alpha: 0.3),
+      gradient: LinearGradient(
+        colors: [AppColors.surfaceElevated, color.withValues(alpha: 0.07)],
+      ),
+      child: Row(
+        children: [
+          Icon(
+            healthy
+                ? Icons.verified_outlined
+                : Icons.health_and_safety_outlined,
+            size: 22,
+            color: color,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  healthy ? 'Monitoring is healthy' : monitoring.statusLabel,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  monitoring.statusDetail,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    color: AppColors.textMuted,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          TextButton(
+            onPressed: () => showMonitoringHealth(context),
+            child: Text(healthy ? 'Check' : 'Fix'),
           ),
         ],
       ),
@@ -555,22 +570,175 @@ class _Section extends StatelessWidget {
   }
 }
 
+class _AdvancedSection extends StatelessWidget {
+  const _AdvancedSection({
+    required this.settings,
+    required this.monitoring,
+    required this.onEditTarget,
+  });
+
+  final SettingsProvider settings;
+  final MonitoringProvider monitoring;
+  final VoidCallback onEditTarget;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: const EdgeInsets.only(bottom: 12),
+          title: const Text(
+            'ADVANCED',
+            style: TextStyle(
+              fontSize: 9.5,
+              letterSpacing: 1.1,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textMuted,
+            ),
+          ),
+          subtitle: const Text(
+            'Detection threshold, diagnostics and Angkas package',
+            style: TextStyle(fontSize: 10.5, color: AppColors.textMuted),
+          ),
+          iconColor: AppColors.primary,
+          collapsedIconColor: AppColors.textMuted,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'OCR confidence threshold',
+                    style: TextStyle(fontSize: 13.5),
+                  ),
+                ),
+                Text(
+                  '${(settings.minConfidence * 100).round()}%',
+                  style: const TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+            Slider(
+              value: settings.minConfidence.clamp(0.35, 0.95),
+              min: 0.35,
+              max: 0.95,
+              divisions: 12,
+              label: '${(settings.minConfidence * 100).round()}%',
+              onChanged: (value) => monitoring.applyConfidence(value),
+            ),
+            const Text(
+              'Higher values need a clearer screen before a ride is saved as '
+              'verified. Lower-confidence reads stay flagged for review.',
+              style: TextStyle(
+                fontSize: 10.5,
+                color: AppColors.textMuted,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Detection diagnostics',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    monitoring.lastReason,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      color: AppColors.textMuted,
+                      height: 1.4,
+                    ),
+                  ),
+                  if (monitoring.lastOcrAt != null)
+                    Text(
+                      'Last frame: ${Dates.fullDate.format(monitoring.lastOcrAt!)}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  if (monitoring.lastScreen?.signals.isNotEmpty == true)
+                    Text(
+                      'Signals: ${monitoring.lastScreen!.signals.take(6).join(', ')}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  if (monitoring.activeTransaction != null)
+                    Text(
+                      'Open booking: ${monitoring.activeTransaction!.bookingReference}',
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.apps, size: 20),
+              title: const Text(
+                'Angkas app package',
+                style: TextStyle(fontSize: 13.5),
+              ),
+              subtitle: Text(
+                settings.targetPackage,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textMuted,
+                ),
+              ),
+              trailing: const Icon(Icons.chevron_right, size: 18),
+              onTap: onEditTarget,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _SettingsTile extends StatelessWidget {
   const _SettingsTile({
     required this.icon,
     required this.title,
     required this.subtitle,
     this.trailing,
+    this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final Widget? trailing;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    final content = Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -604,6 +772,12 @@ class _SettingsTile extends StatelessWidget {
           trailing ?? const SizedBox.shrink(),
         ],
       ),
+    );
+    if (onTap == null) return content;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: content,
     );
   }
 }
@@ -652,8 +826,9 @@ class _PackageDialog extends StatefulWidget {
 }
 
 class _PackageDialogState extends State<_PackageDialog> {
-  late final TextEditingController _controller =
-      TextEditingController(text: widget.initialValue);
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialValue,
+  );
 
   @override
   void dispose() {

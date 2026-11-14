@@ -13,8 +13,8 @@ class EarningsProvider extends ChangeNotifier {
   EarningsProvider({
     required TransactionRepository transactionRepository,
     required ExpenseRepository expenseRepository,
-  })  : _transactions = transactionRepository,
-        _expenses = expenseRepository;
+  }) : _transactions = transactionRepository,
+       _expenses = expenseRepository;
 
   final TransactionRepository _transactions;
   final ExpenseRepository _expenses;
@@ -62,9 +62,13 @@ class EarningsProvider extends ChangeNotifier {
       final recent = results[3] as List<BookingTransaction>;
       final monthExpenses = results[4] as List<Expense>;
 
-      List<Expense> filterExpenses(DateTime start, DateTime end) => monthExpenses
-          .where((e) => !e.createdAt.isBefore(start) && !e.createdAt.isAfter(end))
-          .toList();
+      List<Expense> filterExpenses(DateTime start, DateTime end) =>
+          monthExpenses
+              .where(
+                (e) =>
+                    !e.createdAt.isBefore(start) && !e.createdAt.isAfter(end),
+              )
+              .toList();
 
       _today = EarningsSummary.from(
         transactions: todayTx,
@@ -186,13 +190,22 @@ class EarningsProvider extends ChangeNotifier {
   Future<List<Expense>> expensesBetween(DateTime start, DateTime end) =>
       _expenses.between(start, end);
 
-  Future<EarningsReport> buildReport(ReportPeriod period) async {
+  Future<EarningsReport> buildReport(ReportPeriod period) {
     final now = DateTime.now();
     final (start, end) = switch (period) {
       ReportPeriod.today => (Dates.startOfDay(now), Dates.endOfDay(now)),
       ReportPeriod.week => (Dates.startOfWeek(now), Dates.endOfWeek(now)),
       ReportPeriod.month => (Dates.startOfMonth(now), Dates.endOfMonth(now)),
     };
+    return buildReportForRange(start, end);
+  }
+
+  /// Builds a report for an arbitrary period, used by the date and month
+  /// selectors in Reports.
+  Future<EarningsReport> buildReportForRange(
+    DateTime start,
+    DateTime end,
+  ) async {
     final transactions = await _transactions.between(start, end);
     final expenses = await _expenses.between(start, end);
     return EarningsCalculator.buildReport(

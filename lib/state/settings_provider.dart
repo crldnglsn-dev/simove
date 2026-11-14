@@ -44,9 +44,10 @@ class SettingsProvider extends ChangeNotifier {
 
   String _generateSalt() {
     final random = Random.secure();
-    return List.generate(24, (_) => random.nextInt(256))
-        .map((b) => b.toRadixString(16).padLeft(2, '0'))
-        .join();
+    return List.generate(
+      24,
+      (_) => random.nextInt(256),
+    ).map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
   String? _get(String key) => _values[key];
@@ -97,7 +98,8 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setOnboardingCompleted(bool value) =>
       _setBool(SettingKeys.onboardingCompleted, value);
 
-  String get installSalt => _values[SettingKeys.installSalt] ?? 'simove-local-v1';
+  String get installSalt =>
+      _values[SettingKeys.installSalt] ?? 'simove-local-v1';
 
   Future<void> reset() async {
     await _repository.clear();

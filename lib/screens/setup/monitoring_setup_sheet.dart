@@ -81,128 +81,150 @@ class _MonitoringSetupSheetState extends State<MonitoringSetupSheet>
     final permissions = monitoring.permissions;
 
     return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 4,
-        bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
+      padding: EdgeInsets.fromLTRB(
+        20,
+        4,
+        20,
+        MediaQuery.viewInsetsOf(context).bottom + 20,
       ),
-      child: SingleChildScrollView(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.88,
+        ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppColors.primary, AppColors.accent],
-                ),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: const Icon(
-                Icons.auto_awesome,
-                color: Color(0xFF04121F),
-                size: 24,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              widget.firstRun
-                  ? 'Set up automatic detection'
-                  : 'Monitoring permissions',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'SIMOVE reads only the Angkas booking panel that is visible on '
-              'screen. Screenshots never leave your phone and passenger details '
-              'are never stored.',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                height: 1.45,
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: 20),
-            _PermissionTile(
-              icon: Icons.query_stats,
-              title: 'Usage access',
-              description:
-                  'Tells SIMOVE when Angkas is in the foreground so OCR only runs on the right screen.',
-              granted: permissions.usageAccess,
-              required: true,
-              buttonLabel: 'Open',
-              onPressed: () => monitoring.openSettings('usage'),
-            ),
-            const SizedBox(height: 10),
-            _PermissionTile(
-              icon: Icons.notifications_active_outlined,
-              title: 'Notifications',
-              description:
-                  'Shows the required monitoring notification and keeps Android from hiding the service.',
-              granted: permissions.notifications,
-              buttonLabel: 'Allow',
-              onPressed: () => monitoring.openSettings('notifications'),
-            ),
-            const SizedBox(height: 10),
-            _PermissionTile(
-              icon: Icons.screen_share_outlined,
-              title: 'Screen capture',
-              description:
-                  'Android asks for permission each time monitoring starts. Choose “Share entire screen” so Angkas stays visible while you switch apps.',
-              granted: permissions.captureRunning,
-              required: true,
-              buttonLabel: permissions.captureRunning ? 'Active' : 'Start',
-              onPressed: () => _start(monitoring),
-            ),
-            const SizedBox(height: 10),
-            _PermissionTile(
-              icon: Icons.battery_saver_outlined,
-              title: 'Battery optimisation',
-              description:
-                  'Optional. Exempting SIMOVE helps Android keep monitoring alive during long shifts.',
-              granted: permissions.batteryOptimizationIgnored,
-              buttonLabel: 'Settings',
-              onPressed: () => monitoring.openSettings('battery'),
-            ),
-            const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceElevated,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: const Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.lock_outline, size: 18, color: AppColors.primary),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'SIMOVE never taps Angkas buttons, accepts rides, or stores '
-                      'passenger names, numbers, or addresses. Automatic detection '
-                      'works while Angkas is visible; a pending booking is kept '
-                      'safely while you use Maps or Waze.',
-                      style: TextStyle(
-                        color: AppColors.textMuted,
-                        fontSize: 11.5,
-                        height: 1.45,
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [AppColors.primary, AppColors.accent],
+                        ),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Icon(
+                        Icons.auto_awesome,
+                        color: Color(0xFF04121F),
+                        size: 24,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 16),
+                    Text(
+                      widget.firstRun
+                          ? 'Set up automatic detection'
+                          : 'Monitoring permissions',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'SIMOVE reads only the Angkas booking panel that is visible on '
+                      'screen. Screenshots never leave your phone and passenger details '
+                      'are never stored.',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        height: 1.45,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    _PermissionTile(
+                      icon: Icons.query_stats,
+                      title: 'Usage access',
+                      description: 'Tells SIMOVE when Angkas is in the foreground so OCR only runs on the right screen.',
+                      granted: permissions.usageAccess,
+                      required: true,
+                      buttonLabel: 'Open',
+                      onPressed: () => monitoring.openSettings('usage'),
+                    ),
+                    const SizedBox(height: 10),
+                    _PermissionTile(
+                      icon: Icons.notifications_active_outlined,
+                      title: 'Notifications',
+                      description: 'Shows the required monitoring notification and keeps Android from hiding the service.',
+                      granted: permissions.notifications,
+                      buttonLabel: 'Allow',
+                      onPressed: () => monitoring.openSettings('notifications'),
+                    ),
+                    const SizedBox(height: 10),
+                    _PermissionTile(
+                      icon: Icons.screen_share_outlined,
+                      title: 'Screen capture',
+                      description: 'Android asks for permission each time monitoring starts. Choose “Share entire screen” so Angkas stays visible while you switch apps.',
+                      granted: permissions.captureRunning,
+                      required: true,
+                      buttonLabel: permissions.captureRunning
+                          ? 'Active'
+                          : 'Start',
+                      onPressed: () => _start(monitoring),
+                    ),
+                    const SizedBox(height: 10),
+                    _PermissionTile(
+                      icon: Icons.battery_saver_outlined,
+                      title: 'Battery optimisation',
+                      description: 'Optional. Exempting SIMOVE helps Android keep monitoring alive during long shifts.',
+                      granted: permissions.batteryOptimizationIgnored,
+                      buttonLabel: 'Settings',
+                      onPressed: () => monitoring.openSettings('battery'),
+                    ),
+                    const SizedBox(height: 10),
+                    _PermissionTile(
+                      icon: Icons.restart_alt,
+                      title: 'Auto-start & phone protection',
+                      description: 'On TECNO / Infinix / itel, allow Auto-start in App info and choose Battery → Unrestricted so monitoring is not frozen.',
+                      granted: false,
+                      buttonLabel: 'App info',
+                      onPressed: () => monitoring.openSettings('app'),
+                    ),
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceElevated,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: const Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.lock_outline,
+                            size: 18,
+                            color: AppColors.primary,
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'SIMOVE never taps Angkas buttons, accepts rides, or stores '
+                              'passenger names, numbers, or addresses. Automatic detection '
+                              'works while Angkas is visible; a pending booking is kept '
+                              'safely while you use Maps or Waze.',
+                              style: TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 11.5,
+                                height: 1.45,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                onPressed:
-                    monitoring.isBusy ? null : () => _start(monitoring),
+                onPressed: monitoring.isBusy ? null : () => _start(monitoring),
                 icon: monitoring.isBusy
                     ? const SizedBox(
                         width: 16,
@@ -285,11 +307,13 @@ class _PermissionTile extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13.5,
+                    Flexible(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13.5,
+                        ),
                       ),
                     ),
                     if (required) ...[

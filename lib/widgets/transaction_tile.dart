@@ -7,14 +7,14 @@ import '../data/models/booking_transaction.dart';
 import 'common.dart';
 
 Color bookingStateColor(BookingState state) => switch (state) {
-      BookingState.idle => AppColors.textMuted,
-      BookingState.bookingDetected => AppColors.gold,
-      BookingState.waitingForEarnings => AppColors.gold,
-      BookingState.earningsDetected => AppColors.primary,
-      BookingState.recorded => AppColors.green,
-      BookingState.bookingEnded => AppColors.textSecondary,
-      BookingState.errorRequiresReview => AppColors.orange,
-    };
+  BookingState.idle => AppColors.textMuted,
+  BookingState.bookingDetected => AppColors.gold,
+  BookingState.waitingForEarnings => AppColors.gold,
+  BookingState.earningsDetected => AppColors.primary,
+  BookingState.recorded => AppColors.green,
+  BookingState.bookingEnded => AppColors.textSecondary,
+  BookingState.errorRequiresReview => AppColors.orange,
+};
 
 IconData paymentIcon(String? method) {
   final value = (method ?? '').toLowerCase();

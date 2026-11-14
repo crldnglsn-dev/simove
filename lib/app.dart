@@ -7,6 +7,7 @@ import 'screens/reports/reports_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/setup/monitoring_setup_sheet.dart';
 import 'screens/transactions/transactions_screen.dart';
+import 'state/earnings_provider.dart';
 import 'state/monitoring_provider.dart';
 import 'state/settings_provider.dart';
 
@@ -31,7 +32,7 @@ class SimoveShell extends StatefulWidget {
   State<SimoveShell> createState() => _SimoveShellState();
 }
 
-class _SimoveShellState extends State<SimoveShell> {
+class _SimoveShellState extends State<SimoveShell> with WidgetsBindingObserver {
   int _index = 0;
   bool _offeredSetup = false;
   bool _autoStartAttempted = false;
@@ -39,7 +40,23 @@ class _SimoveShellState extends State<SimoveShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+    // Catch a capture service that Android (or a TECNO battery manager)
+    // stopped while the app was in the background.
+    context.read<MonitoringProvider>().refreshPermissions();
+    context.read<EarningsProvider>().refresh();
   }
 
   Future<void> _bootstrap() async {

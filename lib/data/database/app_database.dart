@@ -63,9 +63,11 @@ class AppDatabase {
       )
     ''');
     await db.execute(
-        'CREATE INDEX idx_transactions_created_at ON transactions(created_at)');
+      'CREATE INDEX idx_transactions_created_at ON transactions(created_at)',
+    );
     await db.execute(
-        'CREATE INDEX idx_transactions_status ON transactions(booking_status)');
+      'CREATE INDEX idx_transactions_status ON transactions(booking_status)',
+    );
     await db.execute('''
       CREATE TABLE expenses (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -76,7 +78,8 @@ class AppDatabase {
       )
     ''');
     await db.execute(
-        'CREATE INDEX idx_expenses_created_at ON expenses(created_at)');
+      'CREATE INDEX idx_expenses_created_at ON expenses(created_at)',
+    );
     await db.execute('''
       CREATE TABLE app_settings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,7 +89,11 @@ class AppDatabase {
     ''');
   }
 
-  Future<void> _upgradeSchema(Database db, int oldVersion, int newVersion) async {
+  Future<void> _upgradeSchema(
+    Database db,
+    int oldVersion,
+    int newVersion,
+  ) async {
     // Migrations are applied incrementally so existing earning history is
     // preserved across app updates.
     for (var version = oldVersion + 1; version <= newVersion; version++) {

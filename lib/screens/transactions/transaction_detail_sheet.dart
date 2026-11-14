@@ -135,7 +135,8 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
               ],
             ),
             const SizedBox(height: 16),
-            if (pending || _transaction.bookingStatus == BookingState.errorRequiresReview)
+            if (pending ||
+                _transaction.bookingStatus == BookingState.errorRequiresReview)
               Container(
                 margin: const EdgeInsets.only(bottom: 14),
                 padding: const EdgeInsets.all(14),
@@ -186,12 +187,16 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    pending ? '—' : Money.format(_transaction.recordedEarningsCents),
+                    pending
+                        ? '—'
+                        : Money.format(_transaction.recordedEarningsCents),
                     style: TextStyle(
                       fontSize: 34,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -1,
-                      color: pending ? AppColors.textMuted : AppColors.textPrimary,
+                      color: pending
+                          ? AppColors.textMuted
+                          : AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -200,12 +205,13 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
                     value: _transaction.platformEarningsCents,
                   ),
                   _AmountRow(
-                    label: 'Tip${_transaction.tipIncludedInPlatformEarnings ? ' (already included)' : ''}',
+                    label:
+                        'Tip${_transaction.tipIncludedInPlatformEarnings ? ' (already included)' : ''}',
                     value: _transaction.tipCents == 0
                         ? null
                         : (_transaction.tipIncludedInPlatformEarnings
-                            ? 0
-                            : _transaction.tipCents),
+                              ? 0
+                              : _transaction.tipCents),
                     positive: true,
                   ),
                   const Divider(height: 22),
@@ -244,7 +250,9 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
                   if (_transaction.earningsDetectedAt != null)
                     LabeledValue(
                       label: 'Earnings read at',
-                      value: Dates.time.format(_transaction.earningsDetectedAt!),
+                      value: Dates.time.format(
+                        _transaction.earningsDetectedAt!,
+                      ),
                     ),
                   if (_transaction.notes != null &&
                       _transaction.notes!.isNotEmpty) ...[
@@ -264,10 +272,7 @@ class _TransactionDetailSheetState extends State<TransactionDetailSheet> {
                           const SizedBox(height: 4),
                           Text(
                             _transaction.notes!,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              height: 1.4,
-                            ),
+                            style: const TextStyle(fontSize: 13, height: 1.4),
                           ),
                         ],
                       ),

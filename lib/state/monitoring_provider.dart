@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../core/utils/date_utils.dart';
 import '../core/utils/money.dart';
 import '../data/models/booking_transaction.dart';
 import '../data/repositories/transaction_repository.dart';
@@ -20,13 +21,13 @@ class MonitoringProvider extends ChangeNotifier {
     required EarningsProvider earnings,
     MonitoringPlatform? platform,
     BookingStateMachine? machine,
-  })  : _transactions = transactionRepository,
-        // ignore: prefer_initializing_formals
-        _settings = settings,
-        // ignore: prefer_initializing_formals
-        _earnings = earnings,
-        _platform = platform ?? MonitoringPlatform(),
-        _machine = machine ?? BookingStateMachine();
+  }) : _transactions = transactionRepository,
+       // ignore: prefer_initializing_formals
+       _settings = settings,
+       // ignore: prefer_initializing_formals
+       _earnings = earnings,
+       _platform = platform ?? MonitoringPlatform(),
+       _machine = machine ?? BookingStateMachine();
 
   final TransactionRepository _transactions;
   final SettingsProvider _settings;
@@ -46,6 +47,7 @@ class MonitoringProvider extends ChangeNotifier {
   bool _overlayShown = false;
   bool _initialized = false;
   bool _busy = false;
+  DateTime? _captureStartedAt;
 
   MonitoringStatus get status => _status;
   PermissionSnapshot get permissions => _permissions;
@@ -60,12 +62,35 @@ class MonitoringProvider extends ChangeNotifier {
   bool get isBusy => _busy;
 
   String get statusLabel => switch (_status) {
-        MonitoringStatus.off => 'Monitoring off',
-        MonitoringStatus.starting => 'Starting…',
-        MonitoringStatus.monitoring => 'Monitoring Angkas',
-        MonitoringStatus.needsPermission => 'Permission needed',
-        MonitoringStatus.error => 'Monitoring stopped',
-      };
+    MonitoringStatus.off => 'Monitoring is off',
+    MonitoringStatus.starting => 'Starting monitoring…',
+    MonitoringStatus.monitoring => 'Monitoring is on',
+    MonitoringStatus.needsPermission => 'Permission needed',
+    MonitoringStatus.error => 'Monitoring stopped',
+  };
+
+  /// True only when both the service and the Android capture permission agree.
+  bool get isHealthy =>
+      _status == MonitoringStatus.monitoring && _permissions.captureRunning;
+
+  /// Plain-language line shown under the status.
+  String get statusDetail {
+    if (_status == MonitoringStatus.monitoring) {
+      if (_lastOcrAt == null) {
+        return 'Waiting for Angkas — open the Angkas app';
+      }
+      return 'Last Angkas screen read at ${Dates.time.format(_lastOcrAt!)}';
+    }
+    return _lastReason;
+  }
+
+  String get actionLabel => switch (_status) {
+    MonitoringStatus.off => 'Start',
+    MonitoringStatus.starting => 'Please wait…',
+    MonitoringStatus.monitoring => 'Health',
+    MonitoringStatus.needsPermission => 'Fix',
+    MonitoringStatus.error => 'Fix',
+  };
 
   Future<void> init() async {
     if (_initialized) return;
@@ -84,6 +109,7 @@ class MonitoringProvider extends ChangeNotifier {
     if (_permissions.captureRunning) {
       _status = MonitoringStatus.monitoring;
       _lastReason = 'Screen capture is running';
+      _captureStartedAt ??= DateTime.now();
     }
 
     final cached = await _platform.getLastOcr().catchError((_) => null);
@@ -110,6 +136,17 @@ class MonitoringProvider extends ChangeNotifier {
         _status = MonitoringStatus.needsPermission;
         _lastReason = 'Usage access is required to detect when Angkas is open';
       }
+      // The service can be killed by aggressive phone battery managers (seen on
+      // TECNO). Give it a few seconds after starting before trusting the flag.
+      if (isMonitoring && !_permissions.captureRunning) {
+        final since = _captureStartedAt;
+        if (since == null ||
+            DateTime.now().difference(since) > const Duration(seconds: 6)) {
+          _status = MonitoringStatus.off;
+          _lastReason = 'Screen capture stopped. Tap Start to resume automatic detection.';
+          _captureStartedAt = null;
+        }
+      }
       notifyListeners();
     } catch (error) {
       debugPrint('Permission status unavailable: $error');
@@ -127,8 +164,7 @@ class MonitoringProvider extends ChangeNotifier {
       await _pushTargetPackage();
       await _platform.setTargetPackage(_settings.targetPackage);
       await refreshPermissions();
-      if (!_permissions.notifications &&
-          _permissions.sdkInt >= 33) {
+      if (!_permissions.notifications && _permissions.sdkInt >= 33) {
         await _platform.requestNotificationPermission().catchError((_) {});
       }
       final granted = await _platform.startCapture();
@@ -139,10 +175,12 @@ class MonitoringProvider extends ChangeNotifier {
       } else {
         _status = MonitoringStatus.monitoring;
         _lastReason = 'Screen capture started';
+        _captureStartedAt = DateTime.now();
         await _settings.setAutoMonitoring(true);
         await refreshPermissions();
         // The service reports foreground app state shortly after starting.
         await _handleCachedFrame();
+        unawaited(_syncNotificationSummary());
       }
     } on MonitoringException catch (error) {
       _status = MonitoringStatus.error;
@@ -167,6 +205,7 @@ class MonitoringProvider extends ChangeNotifier {
       await _settings.setAutoMonitoring(false);
       _status = MonitoringStatus.off;
       _lastReason = 'Monitoring stopped';
+      _captureStartedAt = null;
       _active = await _transactions.latestActive();
     } catch (error) {
       _lastError = 'Could not stop monitoring: $error';
@@ -215,6 +254,7 @@ class MonitoringProvider extends ChangeNotifier {
         _status = MonitoringStatus.error;
         _lastError = event.message ?? 'Screen capture error';
         _lastReason = _lastError!;
+        _captureStartedAt = null;
         notifyListeners();
         break;
     }
@@ -225,6 +265,7 @@ class MonitoringProvider extends ChangeNotifier {
       case 'monitoring':
         _status = MonitoringStatus.monitoring;
         _lastReason = message ?? 'Monitoring Angkas';
+        _captureStartedAt ??= DateTime.now();
         break;
       case 'paused':
       case 'permission_required':
@@ -235,15 +276,18 @@ class MonitoringProvider extends ChangeNotifier {
       case 'capture_stopped':
         _status = MonitoringStatus.off;
         _lastReason = message ?? 'Monitoring stopped';
+        _captureStartedAt = null;
         break;
       case 'capture_started':
         _status = MonitoringStatus.monitoring;
         _lastReason = message ?? 'Screen capture started';
+        _captureStartedAt ??= DateTime.now();
         break;
       case 'error':
         _status = MonitoringStatus.error;
         _lastError = message;
         _lastReason = message ?? 'Monitoring error';
+        _captureStartedAt = null;
         break;
       default:
         if (message != null) _lastReason = message;
@@ -292,8 +336,24 @@ class MonitoringProvider extends ChangeNotifier {
     if (changed) {
       await _earnings.refresh();
       await syncOverlay();
+      unawaited(_syncNotificationSummary());
     }
     notifyListeners();
+  }
+
+  /// Keeps the ongoing notification useful at a glance:
+  /// "Monitoring on · ₱55.90 today".
+  Future<void> _syncNotificationSummary() async {
+    if (!isMonitoring) return;
+    final today = _earnings.today;
+    final text = today.bookingCount == 0
+        ? 'Monitoring on · waiting for your next Angkas ride'
+        : 'Monitoring on · ${Money.format(today.recordedEarningsCents)} today';
+    try {
+      await _platform.updateCaptureNotification(text);
+    } catch (error) {
+      debugPrint('Could not update monitoring notification: $error');
+    }
   }
 
   Future<void> _pushTargetPackage() async {
@@ -338,8 +398,9 @@ class MonitoringProvider extends ChangeNotifier {
     if (!_settings.overlayEnabled) return;
     try {
       final today = _earnings.today;
-      final latest =
-          _earnings.recent.isNotEmpty ? _earnings.recent.first : null;
+      final latest = _earnings.recent.isNotEmpty
+          ? _earnings.recent.first
+          : null;
       final data = <String, Object?>{
         'today': Money.format(today.recordedEarningsCents),
         'tips': Money.format(today.tipsCents),
@@ -348,9 +409,8 @@ class MonitoringProvider extends ChangeNotifier {
             ? Money.format(latest!.recordedEarningsCents)
             : '—',
         'status': statusLabel,
-        'reference': _active?.bookingReference ??
-            latest?.bookingReference ??
-            '',
+        'reference':
+            _active?.bookingReference ?? latest?.bookingReference ?? '',
       };
       if (_overlayShown && !force) {
         await _platform.updateOverlay(data);

@@ -145,10 +145,8 @@ void main() {
 
     final values = await SettingsRepository(reopened).loadAll();
     expect(values['display.currency'], 'PHP');
-    final storedExpenses = await ExpenseRepository(reopened).between(
-      DateTime(2026, 11, 14),
-      DateTime(2026, 11, 15),
-    );
+    final storedExpenses = await ExpenseRepository(reopened)
+        .between(DateTime(2026, 11, 14), DateTime(2026, 11, 15));
     expect(storedExpenses, hasLength(1));
     expect(storedExpenses.first.amountCents, 30000);
 

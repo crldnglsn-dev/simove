@@ -87,7 +87,14 @@ class BookingStateMachine {
           confidence: parsed.confidence,
         );
       }
-      if (parsed.hasAcceptedSignal || parsed.hasEarningsPanel) {
+      final hasEarningsValue = parsed.totalEarningsCents != null;
+      // A past-trip detail sheet can show earnings without any live booking
+      // signal. It must never create a second record for a finished trip.
+      final canCreateFromEarnings =
+          parsed.hasEarningsPanel &&
+          hasEarningsValue &&
+          !parsed.isHistoricalDetail;
+      if (parsed.hasAcceptedSignal || canCreateFromEarnings) {
         return DetectionDecision(
           action: DetectionAction.create,
           reason: parsed.hasAcceptedSignal
@@ -112,16 +119,16 @@ class BookingStateMachine {
       final hasEarnings = active.platformEarningsCents != null;
       final state = hasEarnings
           ? (active.bookingStatus == BookingState.recorded
-              ? BookingState.bookingEnded
-              : BookingState.errorRequiresReview)
+                ? BookingState.bookingEnded
+                : BookingState.errorRequiresReview)
           : BookingState.errorRequiresReview;
       return DetectionDecision(
         action: DetectionAction.update,
         reason: parsed.hasCancelledSignal
             ? 'Booking cancelled'
             : (hasEarnings
-                ? 'Booking ended'
-                : 'Booking ended without detected earnings — review needed'),
+                  ? 'Booking ended'
+                  : 'Booking ended without detected earnings — review needed'),
         updatedActive: active.copyWith(
           bookingStatus: state,
           updatedAt: now,
@@ -137,7 +144,8 @@ class BookingStateMachine {
     }
 
     final signatureChanged = parsed.signature != active.screenSignature;
-    final earningsChanged = parsed.totalEarningsCents != null &&
+    final earningsChanged =
+        parsed.totalEarningsCents != null &&
         parsed.totalEarningsCents != active.platformEarningsCents;
     final sinceEarnings = active.earningsDetectedAt == null
         ? null
@@ -145,16 +153,18 @@ class BookingStateMachine {
 
     final activeHasRecordedValues =
         active.bookingStatus == BookingState.recorded ||
-            active.bookingStatus == BookingState.earningsDetected;
+        active.bookingStatus == BookingState.earningsDetected;
     final isPendingWithoutEarnings =
         active.bookingStatus == BookingState.bookingDetected ||
-            active.bookingStatus == BookingState.waitingForEarnings;
-    final fingerprintAvailable = parsed.bookingFingerprint != null &&
-        active.bookingFingerprint != null;
-    final fingerprintChanged = fingerprintAvailable &&
+        active.bookingStatus == BookingState.waitingForEarnings;
+    final fingerprintAvailable =
+        parsed.bookingFingerprint != null && active.bookingFingerprint != null;
+    final fingerprintChanged =
+        fingerprintAvailable &&
         parsed.bookingFingerprint != active.bookingFingerprint;
     final fingerprintSame =
-        fingerprintAvailable && parsed.bookingFingerprint == active.bookingFingerprint;
+        fingerprintAvailable &&
+        parsed.bookingFingerprint == active.bookingFingerprint;
 
     if (activeHasRecordedValues && parsed.hasAcceptedSignal) {
       if (fingerprintChanged) {
@@ -356,12 +366,13 @@ class BookingStateMachine {
     final nextState = trustworthy
         ? BookingState.recorded
         : (earnings != null
-            ? BookingState.errorRequiresReview
-            : (active.bookingStatus.isPending
-                ? active.bookingStatus
-                : BookingState.waitingForEarnings));
+              ? BookingState.errorRequiresReview
+              : (active.bookingStatus.isPending
+                    ? active.bookingStatus
+                    : BookingState.waitingForEarnings));
 
-    final onlySignatureChanged = earnings == active.platformEarningsCents &&
+    final onlySignatureChanged =
+        earnings == active.platformEarningsCents &&
         fare == active.fareToCollectCents &&
         payment == active.paymentMethod &&
         nextState == active.bookingStatus;
@@ -369,7 +380,8 @@ class BookingStateMachine {
     // A partially readable or blurry frame (for example during a scroll) must
     // not un-record an already verified booking. Only downgrade to review when
     // this frame actually proposes different values.
-    final valuesUnchanged = (parsed.totalEarningsCents == null ||
+    final valuesUnchanged =
+        (parsed.totalEarningsCents == null ||
             parsed.totalEarningsCents == active.platformEarningsCents) &&
         (parsed.fareToCollectCents == null ||
             parsed.fareToCollectCents == active.fareToCollectCents) &&
@@ -464,16 +476,17 @@ class BookingStateMachine {
     double threshold,
   ) {
     final hasEarnings = parsed.totalEarningsCents != null;
-    final complete = hasEarnings &&
+    final complete =
+        hasEarnings &&
         parsed.fareToCollectCents != null &&
         parsed.confidence >= threshold;
     final state = complete
         ? BookingState.recorded
         : (hasEarnings
-            ? BookingState.errorRequiresReview
-            : (parsed.hasEarningsPanel
-                ? BookingState.waitingForEarnings
-                : BookingState.bookingDetected));
+              ? BookingState.errorRequiresReview
+              : (parsed.hasEarningsPanel
+                    ? BookingState.waitingForEarnings
+                    : BookingState.bookingDetected));
 
     return BookingTransaction(
       bookingReference: '',

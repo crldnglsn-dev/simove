@@ -49,8 +49,9 @@ void main() {
     databaseFactory = databaseFactoryFfi;
   });
 
-  testWidgets('app shell renders, onboards and shows recorded earnings',
-      (tester) async {
+  testWidgets('app shell renders, onboards and shows recorded earnings', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1080, 2400);
     tester.view.devicePixelRatio = 2.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -102,7 +103,7 @@ void main() {
     await pumpUi(tester);
 
     expect(find.text('SIMOVE'), findsOneWidget);
-    expect(find.text("TODAY'S EARNINGS"), findsOneWidget);
+    expect(find.text("TODAY'S INCOME"), findsOneWidget);
 
     // A recorded booking reaches the dashboard.
     await tester.runAsync(
@@ -120,11 +121,17 @@ void main() {
     // Tabs render their own content.
     await tester.tap(find.text('Transactions'));
     await pumpUi(tester);
-    expect(find.text('Every booking, tip and fare in one place'), findsOneWidget);
+    expect(
+      find.text('Every booking, tip and fare in one place'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Reports'));
     await pumpUi(tester);
-    expect(find.text('Understand where your income comes from'), findsOneWidget);
+    expect(
+      find.text('Understand where your income comes from'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Settings'));
     await pumpUi(tester);
@@ -134,6 +141,10 @@ void main() {
     );
 
     // Editing the monitored package must not crash while the dialog closes.
+    await tester.scrollUntilVisible(find.text('ADVANCED'), 300);
+    await tester.tap(find.text('ADVANCED'));
+    await pumpUi(tester);
+    await tester.scrollUntilVisible(find.text('Angkas app package'), 200);
     await tester.tap(find.text('Angkas app package'));
     await pumpUi(tester);
     expect(find.text('Android package name'), findsOneWidget);

@@ -16,9 +16,9 @@ stores passenger names, phone numbers or addresses.
 | Item | Status |
 |---|---|
 | Flutter UI, SQLite storage, manual entry, tips, expenses, reports | Implemented and unit-tested on this machine |
-| Booking state machine, OCR parser, duplicate prevention | Implemented; 34 automated tests pass |
-| Android screen capture + ML Kit OCR + foreground-app gating | Implemented; end-to-end flow verified on an Android 16 emulator with a synthetic Angkas booking page |
-| Live Angkas OCR accuracy on a real phone | **Not verified here** — no Android phone was connected to the build machine |
+| Booking state machine, OCR parser, duplicate prevention | Implemented; 47 automated tests pass |
+| Android screen capture + ML Kit OCR + foreground-app gating | Implemented; end-to-end flow verified on an Android 16 emulator with a synthetic Angkas booking page, then on a real phone |
+| Live Angkas OCR accuracy on a real phone | **Verified on hardware** — TECNO LJ6 (Android 16 / API 36), Angkas package `com.angkas.drivernew` |
 | Debug APK | `build/app/outputs/flutter-apk/app-debug.apk` |
 | Release APK | `build/app/outputs/flutter-apk/app-release.apk` |
 
@@ -29,6 +29,23 @@ ML Kit OCR, parsing of `Total Earnings ₱75.00`, `Fare To Collect ₱95.00` and
 suppression across many frames, a second booking creating a new record, the
 floating overlay, and tip/expense entry. Real Angkas screens and a physical
 device are still untested.
+
+Validated on the real phone (TECNO LJ6, Android 16, Angkas 2.x package
+`com.angkas.drivernew`) on 2026-11-14:
+
+- Auto-accepted booking panel read correctly: `Proceed to Pickup`, `Total
+  Earnings ₱75.00`, `Fare To Collect ₱95.00`, payment `Cash`.
+- The same ride's trip-details screen (later) was recognised via `Total Payment`
+  / `Collected Payment` and the `Biker Cancelled` status chip, updating the open
+  booking instead of creating a new one.
+- Exactly one transaction was stored: `SMV-20261114-001`, platform ₱55.90
+  / fare collected ₱76.00, Cash, status `bookingEnded` — with no passenger data.
+- OCR history-tab false positives (bare `Earnings`, `NET EARNINGS` summaries) were
+  fixed and the parser was extended to accept the real labels.
+- A later auto-accepted booking was missed because the TECNO's `Usf_Hiber` power
+  manager froze the app process; the app is now device-idle whitelisted and given
+  background execution permission, and the UI/health flow can detect and surface
+  capture stops.
 
 
 The release APK is currently signed with the local **debug keystore** so it can be
@@ -43,8 +60,9 @@ installed and tested. Replace the signing config in
   and creates one pending transaction.
 - **Pending bookings survive app switches and restarts** – a booking is kept in
   SQLite while Maps or Waze is in front, and while SIMOVE is closed.
-- **Earnings recognition** – Total Earnings, Fare To Collect and payment method,
-  read only when their labels are visible.
+- **Earnings recognition** – Total Earnings / Total Payment, Fare To Collect and
+  payment method, read only when their labels are visible; payment methods are
+  limited to Cash, E-wallet or Card.
 - **Duplicate prevention** – state machine, salted screen-signature hash, salted
   booking-panel fingerprint, two-frame confirmation for weak new-booking signals,
   and a manual-edit lock so corrected values are never overwritten by OCR.
@@ -80,7 +98,8 @@ subtracted. Money is stored as integer centavos to avoid rounding errors.
 ## Requirements
 
 - Android 8.0 (API 26) or newer.
-- The Angkas rider app installed (default package `com.angkas.rider`).
+- The Angkas rider app installed (this build was validated against
+  `com.angkas.drivernew`).
 - Permissions used:
   - **Usage access** – required so OCR runs only while Angkas is in front.
   - **Screen capture** – Android asks for consent every time monitoring starts.
@@ -209,7 +228,7 @@ project live on different drives.
 C:\flutter\bin\flutter.bat test
 ```
 
-34 tests cover the acceptance criteria:
+47 tests cover the acceptance criteria:
 
 | Area | Tests |
 |---|---|
@@ -260,6 +279,8 @@ lib/
   services/        Flutter ↔ Android bridge, CSV/JSON export
   state/           settings, earnings and monitoring providers
   widgets/         shared UI components
+assets/
+  logo/            generated SIMOVE logo PNGs (1024 / 512 / adaptive)
 android/app/src/main/kotlin/com/simove/app/
   MainActivity.kt                    channels, permissions, capture consent
   capture/ScreenCaptureService.kt    MediaProjection + ML Kit + foreground gating
@@ -282,6 +303,7 @@ android/app/src/main/kotlin/com/simove/app/
 | Tip counted twice | Toggle **Already included in Total Earnings** on the tip. |
 | Monitoring stops after a while | Exempt SIMOVE from battery optimisation (Settings → Battery optimisation). |
 | Overlay does not show | Grant **Display over other apps**, then enable the tracker again. |
+| Monitoring shows “off” / nothing is detected while Angkas is open | Tap **Fix** on the dashboard. Grant **battery → Unrestricted** and **Auto-start** in the Angkas-adjacent app info screen (TECNO/Infinix/itel). If the OEM still freezes the process, whitelist with `adb shell cmd deviceidle whitelist +com.simove.app`. |
 
 ---
 

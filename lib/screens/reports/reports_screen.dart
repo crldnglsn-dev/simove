@@ -9,6 +9,7 @@ import '../../domain/summary/earnings_summary.dart';
 import '../../services/earnings_exporter.dart';
 import '../../state/earnings_provider.dart';
 import '../../widgets/common.dart';
+import '../../widgets/period_pickers.dart';
 import 'expense_sheet.dart';
 
 class ReportsScreen extends StatefulWidget {
@@ -20,11 +21,17 @@ class ReportsScreen extends StatefulWidget {
 
 class _ReportsScreenState extends State<ReportsScreen> {
   ReportPeriod _period = ReportPeriod.week;
+  PeriodCustomKind? _customKind;
+  DateTime? _customStart;
+  DateTime? _customEnd;
+  String? _customLabel;
   EarningsReport? _report;
   List<Expense> _expenses = const [];
   bool _loading = true;
   int _loadToken = 0;
   String? _signature;
+
+  bool get _isCustom => _customStart != null && _customEnd != null;
 
   @override
   void initState() {
@@ -32,9 +39,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
     _load();
   }
 
-  (DateTime, DateTime) _range(ReportPeriod period) {
+  (DateTime, DateTime) _range() {
+    if (_isCustom) return (_customStart!, _customEnd!);
     final now = DateTime.now();
-    return switch (period) {
+    return switch (_period) {
       ReportPeriod.today => (Dates.startOfDay(now), Dates.endOfDay(now)),
       ReportPeriod.week => (Dates.startOfWeek(now), Dates.endOfWeek(now)),
       ReportPeriod.month => (Dates.startOfMonth(now), Dates.endOfMonth(now)),
@@ -45,8 +53,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final token = ++_loadToken;
     setState(() => _loading = true);
     final provider = context.read<EarningsProvider>();
-    final range = _range(_period);
-    final report = await provider.buildReport(_period);
+    final range = _range();
+    final report = await provider.buildReportForRange(range.$1, range.$2);
     final expenses = await provider.expensesBetween(range.$1, range.$2);
     if (!mounted || token != _loadToken) return;
     setState(() {
@@ -54,6 +62,50 @@ class _ReportsScreenState extends State<ReportsScreen> {
       _expenses = expenses;
       _loading = false;
     });
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await pickReportDate(
+      context,
+      initial: _customKind == PeriodCustomKind.day
+          ? _customStart
+          : DateTime.now(),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _customKind = PeriodCustomKind.day;
+      _customStart = Dates.startOfDay(picked);
+      _customEnd = Dates.endOfDay(picked);
+      _customLabel = Dates.dateOnly.format(picked);
+    });
+    _load();
+  }
+
+  Future<void> _pickMonth() async {
+    final picked = await pickReportMonth(
+      context,
+      initial: _customKind == PeriodCustomKind.month
+          ? _customStart
+          : DateTime.now(),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _customKind = PeriodCustomKind.month;
+      _customStart = Dates.startOfMonth(picked);
+      _customEnd = Dates.endOfMonth(picked);
+      _customLabel = Dates.monthLabel.format(picked);
+    });
+    _load();
+  }
+
+  void _clearCustom() {
+    setState(() {
+      _customKind = null;
+      _customStart = null;
+      _customEnd = null;
+      _customLabel = null;
+    });
+    _load();
   }
 
   void _syncWithProvider(EarningsProvider provider) {
@@ -72,7 +124,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Future<void> _export({required bool csv}) async {
-    final range = _range(_period);
+    final range = _range();
     final provider = context.read<EarningsProvider>();
     final transactions = await provider.history(
       start: range.$1,
@@ -94,9 +146,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Export failed: $error')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Export failed: $error')));
     }
   }
 
@@ -128,28 +179,80 @@ class _ReportsScreenState extends State<ReportsScreen> {
               style: TextStyle(fontSize: 11, color: AppColors.textMuted),
             ),
             const SizedBox(height: 16),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final period in ReportPeriod.values) ...[
-                    ChoiceChip(
-                      label: Text(switch (period) {
-                        ReportPeriod.today => 'Today',
-                        ReportPeriod.week => 'This week',
-                        ReportPeriod.month => 'This month',
-                      }),
-                      selected: _period == period,
-                      onSelected: (_) {
-                        setState(() => _period = period);
-                        _load();
-                      },
+            Row(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (final period in ReportPeriod.values) ...[
+                          ChoiceChip(
+                            label: Text(switch (period) {
+                              ReportPeriod.today => 'Today',
+                              ReportPeriod.week => 'This week',
+                              ReportPeriod.month => 'This month',
+                            }),
+                            selected: !_isCustom && _period == period,
+                            onSelected: (_) {
+                              setState(() {
+                                _period = period;
+                                _customKind = null;
+                                _customStart = null;
+                                _customEnd = null;
+                                _customLabel = null;
+                              });
+                              _load();
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                  ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                RangeIconButton(
+                  icon: Icons.calendar_today_outlined,
+                  tooltip: 'Pick a date',
+                  active: _customKind == PeriodCustomKind.day,
+                  onTap: _pickDate,
+                ),
+                const SizedBox(width: 6),
+                RangeIconButton(
+                  icon: Icons.calendar_month_outlined,
+                  tooltip: 'Pick a month',
+                  active: _customKind == PeriodCustomKind.month,
+                  onTap: _pickMonth,
+                ),
+              ],
+            ),
+            if (_isCustom) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.filter_alt_outlined,
+                    size: 14,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Showing $_customLabel',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _clearCustom,
+                    child: const Text('Clear'),
+                  ),
                 ],
               ),
-            ),
+            ],
             const SizedBox(height: 16),
             if (_loading)
               const Padding(
@@ -166,8 +269,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SectionHeader(
-                      title: 'Daily earnings',
-                      subtitle: 'Recorded earnings per day',
+                      title: 'Income by day',
+                      subtitle: 'Completed bookings only',
                       padding: EdgeInsets.only(bottom: 16),
                     ),
                     if (report == null || report.dailyTotals.isEmpty)
@@ -221,8 +324,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: () => _export(csv: true),
-                            icon: const Icon(Icons.table_chart_outlined,
-                                size: 18),
+                            icon: const Icon(
+                              Icons.table_chart_outlined,
+                              size: 18,
+                            ),
                             label: const Text('CSV'),
                           ),
                         ),
@@ -230,8 +335,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         Expanded(
                           child: OutlinedButton.icon(
                             onPressed: () => _export(csv: false),
-                            icon:
-                                const Icon(Icons.data_object_outlined, size: 18),
+                            icon: const Icon(
+                              Icons.data_object_outlined,
+                              size: 18,
+                            ),
                             label: const Text('JSON'),
                           ),
                         ),
@@ -280,7 +387,7 @@ class _ReportHero extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'RECORDED EARNINGS',
+            'INCOME FOR THIS PERIOD',
             style: TextStyle(
               fontSize: 10.5,
               letterSpacing: 1.2,
@@ -347,8 +454,9 @@ class _ReportStat extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Column(
-        crossAxisAlignment:
-            alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: alignEnd
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           Text(
             value,
@@ -405,10 +513,7 @@ class _BreakdownCard extends StatelessWidget {
               const Expanded(
                 child: Text(
                   'Estimated net',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                 ),
               ),
               Text(
@@ -473,9 +578,11 @@ class _DailyBars extends StatelessWidget {
                       height: maxCents == 0
                           ? 4
                           : 4 +
-                              (76 *
-                                  (totals[i].earningsCents / maxCents)
-                                      .clamp(0.0, 1.0)),
+                                (76 *
+                                    (totals[i].earningsCents / maxCents).clamp(
+                                      0.0,
+                                      1.0,
+                                    )),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.bottomCenter,
@@ -492,9 +599,7 @@ class _DailyBars extends StatelessWidget {
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      i % showLabelEvery == 0
-                          ? '${totals[i].day.day}'
-                          : '',
+                      i % showLabelEvery == 0 ? '${totals[i].day.day}' : '',
                       style: const TextStyle(
                         fontSize: 8,
                         color: AppColors.textMuted,
@@ -611,14 +716,16 @@ class _ExpensesCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              IconButton(
+              TextButton.icon(
                 onPressed: onAdd,
-                visualDensity: VisualDensity.compact,
-                style: IconButton.styleFrom(
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
                   backgroundColor: AppColors.surfaceElevated,
                   side: const BorderSide(color: AppColors.border),
                 ),
                 icon: const Icon(Icons.add, size: 16),
+                label: const Text('Add', style: TextStyle(fontSize: 12)),
               ),
             ],
           ),

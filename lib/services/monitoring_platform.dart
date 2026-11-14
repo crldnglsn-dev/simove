@@ -90,7 +90,8 @@ class MonitoringEvent {
       'error' => MonitoringEventType.error,
       _ => MonitoringEventType.status,
     };
-    final rawObservation = map['observation'] ?? (type == MonitoringEventType.ocr ? map : null);
+    final rawObservation =
+        map['observation'] ?? (type == MonitoringEventType.ocr ? map : null);
     return MonitoringEvent(
       type: type,
       status: map['status'] as String?,
@@ -115,12 +116,9 @@ class MonitoringException implements Exception {
 
 /// Thin bridge to the native Android screen-capture / OCR / overlay service.
 class MonitoringPlatform {
-  MonitoringPlatform({
-    MethodChannel? methodChannel,
-    EventChannel? eventChannel,
-  })  : _methods = methodChannel ??
-            const MethodChannel('simove/control'),
-        _events = eventChannel ?? const EventChannel('simove/events');
+  MonitoringPlatform({MethodChannel? methodChannel, EventChannel? eventChannel})
+    : _methods = methodChannel ?? const MethodChannel('simove/control'),
+      _events = eventChannel ?? const EventChannel('simove/events');
 
   final MethodChannel _methods;
   final EventChannel _events;
@@ -177,6 +175,9 @@ class MonitoringPlatform {
       _invoke<void>('requestNotificationPermission');
 
   Future<void> openTargetApp() => _invoke<void>('openTargetApp');
+
+  Future<void> updateCaptureNotification(String text) =>
+      _invoke<void>('updateCaptureNotification', {'text': text});
 
   bool get isAndroid => defaultTargetPlatform == TargetPlatform.android;
 }

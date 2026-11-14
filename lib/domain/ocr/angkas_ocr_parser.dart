@@ -33,6 +33,8 @@ class AngkasOcrParser {
     'RIDECOMPLETED': 'Trip completed',
     'BOOKINGCOMPLETED': 'Trip completed',
     'SERVICECOMPLETED': 'Trip completed',
+    'BIKERCOMPLETED': 'Trip completed',
+    'BIKERCOMPLETE': 'Trip completed',
     'RATEYOURPASSENGER': 'Rate your passenger',
     'RATEPASSENGER': 'Rate your passenger',
     'HOWWASYOURTRIP': 'Rate your passenger',
@@ -43,23 +45,28 @@ class AngkasOcrParser {
   static const _cancelledSignals = <String, String>{
     'BOOKINGCANCELLED': 'Booking cancelled',
     'RIDECANCELLED': 'Booking cancelled',
+    'RIDERCANCELLED': 'Booking cancelled',
     'PASSENGERCANCELLED': 'Passenger cancelled',
     'TRIPCANCELLED': 'Booking cancelled',
+    'BIKERCANCELLED': 'Booking cancelled',
+    'BIKERCANCELED': 'Booking cancelled',
   };
 
+  // Angkas settles rides with exactly one of these three methods. Wallet
+  // brands (GCash, Maya, Angkas Credit) all count as E-wallet.
   static const _paymentMethods = <String, String>{
     'CASH': 'Cash',
-    'GCASH': 'GCash',
-    'MAYA': 'Maya',
-    'PAYMAYA': 'Maya',
+    'PAYMENTCASH': 'Cash',
+    'GCASH': 'E-wallet',
+    'MAYA': 'E-wallet',
+    'PAYMAYA': 'E-wallet',
     'EWALLET': 'E-wallet',
     'EWALLETPAYMENT': 'E-wallet',
     'WALLET': 'E-wallet',
+    'ANGKASCREDIT': 'E-wallet',
     'CREDITCARD': 'Card',
     'DEBITCARD': 'Card',
     'CARD': 'Card',
-    'ANGKASCREDIT': 'Angkas Credit',
-    'PAYMENTCASH': 'Cash',
   };
 
   static final RegExp _rawAmount = RegExp(
@@ -67,50 +74,69 @@ class AngkasOcrParser {
   );
 
   ParsedBookingScreen parse(ScreenObservation observation) {
-    final lines = [...observation.lines]..sort((a, b) => a.top.compareTo(b.top));
+    final lines = [...observation.lines]
+      ..sort((a, b) => a.top.compareTo(b.top));
     final compacts = lines.map((l) => _compact(l.text)).toList();
     final joined = compacts.join(' ');
     final height = math.max(observation.screenHeight, 1).toDouble();
 
     final signals = <String>[];
 
+    // The earnings tab lists past trips ("Today", "Yesterday", "Net Earnings").
+    // Status chips inside those rows ("Biker Cancelled") describe history, not
+    // the booking that is currently open, so they must not end a live booking.
+    final historyScreen = _isEarningsHistory(compacts);
+    if (historyScreen) signals.add('earnings_history');
+
     String? statusLabel;
     var accepted = false;
-    for (final entry in _acceptedSignals.entries) {
-      if (joined.contains(entry.key)) {
-        accepted = true;
-        statusLabel ??= entry.value;
-        signals.add('accepted:${entry.value}');
-      }
-    }
-
     var ended = false;
-    for (final entry in _endedSignals.entries) {
-      if (joined.contains(entry.key)) {
-        ended = true;
-        statusLabel ??= entry.value;
-        signals.add('ended:${entry.value}');
-      }
-    }
-
     var cancelled = false;
-    for (final entry in _cancelledSignals.entries) {
-      if (joined.contains(entry.key)) {
-        cancelled = true;
-        statusLabel ??= entry.value;
-        signals.add('cancelled:${entry.value}');
+    if (!historyScreen) {
+      for (final entry in _acceptedSignals.entries) {
+        if (joined.contains(entry.key)) {
+          accepted = true;
+          statusLabel ??= entry.value;
+          signals.add('accepted:${entry.value}');
+        }
+      }
+
+      for (final entry in _endedSignals.entries) {
+        if (joined.contains(entry.key)) {
+          ended = true;
+          statusLabel ??= entry.value;
+          signals.add('ended:${entry.value}');
+        }
+      }
+
+      for (final entry in _cancelledSignals.entries) {
+        if (joined.contains(entry.key)) {
+          cancelled = true;
+          statusLabel ??= entry.value;
+          signals.add('cancelled:${entry.value}');
+        }
       }
     }
 
-    final earningsIndex = _findLabel(
-      compacts,
-      const ['TOTAL EARNING', 'TOTALEARNING'],
-    );
-    final fareIndex = _findLabel(
-      compacts,
-      const ['FARETOCOLLECT', 'FARECOLLECT', 'FARETOCOLLECTFROMPASSENGER'],
-    );
-    final hasEarningsPanel = earningsIndex != null || fareIndex != null;
+    final earningsIndex = _findLabel(compacts, const [
+      'TOTAL EARNING',
+      'TOTALEARNING',
+      'TOTALNETEARNING',
+    ]);
+    final fareIndex = _findLabel(compacts, const [
+      'FARETOCOLLECT',
+      'FARECOLLECT',
+      'FARETOCOLLECTFROMPASSENGER',
+      // Angkas trip details label the passenger's payment this way.
+      'TOTALPAYMENT',
+      'COLLECTEDPAYMENT',
+    ]);
+
+    // A bare "Earnings" heading on the history tab must never be read as a
+    // live booking panel. Only an explicit "Total Earnings" label overrides
+    // this guard.
+    final hasEarningsPanel =
+        earningsIndex != null || (fareIndex != null && !historyScreen);
     if (hasEarningsPanel) signals.add('earnings_panel');
 
     int? earnings;
@@ -132,7 +158,10 @@ class AngkasOcrParser {
         lines: lines,
         compacts: compacts,
         labelIndex: fareIndex,
-        labelRegex: RegExp(r'fare\s*(to\s*)?collect', caseSensitive: false),
+        labelRegex: RegExp(
+          r'(?:fare\s*(?:to\s*)?collect|total\s*payment|collected\s*payment)',
+          caseSensitive: false,
+        ),
         screenHeight: height,
         excludedIndexes: {?earningsIndex},
       );
@@ -140,9 +169,24 @@ class AngkasOcrParser {
       if (match != null) signals.add('fare_to_collect');
     }
 
+    // A trip-detail sheet ("BOOKING ID", "Report an issue") describes a
+    // finished trip. It is safe to update the open booking from it, but it
+    // must never create a new record when no booking is open (for example
+    // while browsing the earnings history).
+    final isHistoricalDetail =
+        joined.contains('BOOKINGID') ||
+        joined.contains('HAVECONCERNS') ||
+        joined.contains('REPORTANISSUE');
+
     String? payment;
     if (hasEarningsPanel) {
-      payment = _extractPayment(lines, compacts, fareIndex, earningsIndex, height);
+      payment = _extractPayment(
+        lines,
+        compacts,
+        fareIndex,
+        earningsIndex,
+        height,
+      );
       if (payment != null) signals.add('payment:$payment');
     }
 
@@ -187,6 +231,7 @@ class AngkasOcrParser {
         lines,
         observation.screenHeight,
       ),
+      isHistoricalDetail: isHistoricalDetail,
       signals: signals,
     );
   }
@@ -197,11 +242,22 @@ class AngkasOcrParser {
         if (compacts[i].contains(pattern)) return i;
       }
     }
-    // Fall back to an exact "Earnings" label only when no richer label exists.
-    for (var i = 0; i < compacts.length; i++) {
-      if (compacts[i] == 'EARNINGS') return i;
-    }
     return null;
+  }
+
+  /// True when the screen is the earnings tab (a list of finished trips)
+  /// rather than the earnings breakdown for one active booking.
+  bool _isEarningsHistory(List<String> compacts) {
+    if (compacts.any((c) => c.contains('NETEARNINGS'))) return true;
+    var today = false;
+    var yesterday = false;
+    var trips = false;
+    for (final compact in compacts) {
+      if (compact == 'TODAY') today = true;
+      if (compact == 'YESTERDAY') yesterday = true;
+      if (compact.contains('TRIPS')) trips = true;
+    }
+    return today && yesterday && trips;
   }
 
   _AmountMatch? _extractAmount({
@@ -267,17 +323,20 @@ class AngkasOcrParser {
     int? earningsIndex,
     double screenHeight,
   ) {
-    final paymentIndex = _findLabel(compacts, const ['PAYMENTMETHOD', 'PAYMENT']);
+    final paymentIndex = _findLabel(compacts, const [
+      'PAYMENTMETHOD',
+      'PAYMENT',
+    ]);
     if (paymentIndex != null) {
       final labelLine = lines[paymentIndex];
-      final rawMatch =
-          RegExp(r'payment(\s*method)?', caseSensitive: false).firstMatch(
-        labelLine.text,
-      );
+      final rawMatch = RegExp(
+        r'payment(\s*method)?',
+        caseSensitive: false,
+      ).firstMatch(labelLine.text);
       final searchFrom = rawMatch?.end ?? 0;
-      final sameLine = _methodInText(labelLine.text.substring(
-        math.min(searchFrom, labelLine.text.length),
-      ));
+      final sameLine = _methodInText(
+        labelLine.text.substring(math.min(searchFrom, labelLine.text.length)),
+      );
       if (sameLine != null) return sameLine;
       for (var offset = 1; offset <= 2; offset++) {
         final index = paymentIndex + offset;
@@ -304,6 +363,10 @@ class AngkasOcrParser {
   String? _methodInText(String text) {
     final compact = _compact(text);
     if (compact.isEmpty) return null;
+    // "Cash Handling Earnings" is a fee row, not a payment method.
+    if (compact.contains('HANDLING') || compact.contains('EARNING')) {
+      return null;
+    }
     for (final entry in _paymentMethods.entries) {
       if (compact == entry.key) return entry.value;
     }
@@ -319,14 +382,14 @@ class AngkasOcrParser {
       if (match.start < minStart) continue;
       final full = match.group(0) ?? '';
       final digits = match.group(1) ?? '';
-      final hasSymbol = full.contains('₱') ||
-          full.toUpperCase().contains('PHP');
-      final decimals = digits.contains('.')
-          ? digits.split('.').last.length
-          : 0;
+      final hasSymbol =
+          full.contains('₱') || full.toUpperCase().contains('PHP');
+      final decimals = digits.contains('.') ? digits.split('.').last.length : 0;
       final trailing = text.substring(match.end);
-      if (RegExp(r'^\s*(km|kms|min|mins|m\b|%|x\b)', caseSensitive: false)
-          .hasMatch(trailing)) {
+      if (RegExp(
+        r'^\s*(km|kms|min|mins|m\b|%|x\b)',
+        caseSensitive: false,
+      ).hasMatch(trailing)) {
         continue;
       }
       // Bare integers are ambiguous (clock times, booking numbers, map

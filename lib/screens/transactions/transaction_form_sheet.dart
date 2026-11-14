@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/date_utils.dart';
 import '../../core/utils/money.dart';
+import '../../core/utils/payment_methods.dart';
 import '../../data/models/booking_transaction.dart';
 import '../../state/earnings_provider.dart';
 import '../../state/monitoring_provider.dart';
@@ -41,15 +42,7 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
   late DateTime _createdAt;
   bool _saving = false;
 
-  static const _paymentMethods = [
-    'Cash',
-    'GCash',
-    'Maya',
-    'E-wallet',
-    'Card',
-    'Angkas Credit',
-    'Other',
-  ];
+  static const _paymentMethods = PaymentMethods.all;
 
   bool get _isEditing => widget.transaction != null;
 
@@ -73,9 +66,7 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
           : Money.format(t!.tipCents, withSymbol: false),
     );
     _notes = TextEditingController(text: t?.notes ?? '');
-    _paymentMethod = _paymentMethods.contains(t?.paymentMethod)
-        ? t!.paymentMethod!
-        : 'Cash';
+    _paymentMethod = PaymentMethods.normalize(t?.paymentMethod);
     _tipType = t?.tipType ?? TipType.cash;
     _tipIncluded = t?.tipIncludedInPlatformEarnings ?? false;
     _createdAt = t?.createdAt ?? DateTime.now();
@@ -174,9 +165,9 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not save booking: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save booking: $error')));
     }
   }
 
@@ -198,9 +189,8 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
             children: [
               Text(
                 editing ? 'Edit booking' : 'Add booking manually',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                style: Theme.of(context).textTheme.headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 4),
               Text(
@@ -365,8 +355,9 @@ class _TransactionFormSheetState extends State<TransactionFormSheet> {
               SizedBox(
                 width: double.infinity,
                 child: TextButton(
-                  onPressed:
-                      _saving ? null : () => Navigator.of(context).pop(false),
+                  onPressed: _saving
+                      ? null
+                      : () => Navigator.of(context).pop(false),
                   child: const Text('Cancel'),
                 ),
               ),

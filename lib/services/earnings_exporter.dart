@@ -21,32 +21,36 @@ class EarningsExporter {
       'Type,Reference,Date,Platform Earnings,Fare To Collect,Payment Method,Tip,Tip Type,Recorded Earnings,Status,Source,Confidence,Notes',
     );
     for (final t in transactions) {
-      buffer.writeln([
-        'Booking',
-        t.bookingReference,
-        Dates.fullDate.format(t.createdAt),
-        Money.forCsv(t.platformEarningsCents),
-        Money.forCsv(t.fareToCollectCents),
-        _csv(t.paymentMethod ?? ''),
-        Money.forCsv(t.effectiveTipCents),
-        t.tipType.name,
-        Money.forCsv(t.hasPlatformEarnings ? t.recordedEarningsCents : null),
-        t.bookingStatus.label,
-        t.detectionSource.label,
-        t.detectionConfidence?.toStringAsFixed(2) ?? '',
-        _csv(t.notes ?? ''),
-      ].join(','));
+      buffer.writeln(
+        [
+          'Booking',
+          t.bookingReference,
+          Dates.fullDate.format(t.createdAt),
+          Money.forCsv(t.platformEarningsCents),
+          Money.forCsv(t.fareToCollectCents),
+          _csv(t.paymentMethod ?? ''),
+          Money.forCsv(t.effectiveTipCents),
+          t.tipType.name,
+          Money.forCsv(t.hasPlatformEarnings ? t.recordedEarningsCents : null),
+          t.bookingStatus.label,
+          t.detectionSource.label,
+          t.detectionConfidence?.toStringAsFixed(2) ?? '',
+          _csv(t.notes ?? ''),
+        ].join(','),
+      );
     }
     buffer.writeln();
     buffer.writeln('Type,Category,Date,Amount,Description');
     for (final e in expenses) {
-      buffer.writeln([
-        'Expense',
-        e.category,
-        Dates.fullDate.format(e.createdAt),
-        Money.forCsv(e.amountCents),
-        _csv(e.description ?? ''),
-      ].join(','));
+      buffer.writeln(
+        [
+          'Expense',
+          e.category,
+          Dates.fullDate.format(e.createdAt),
+          Money.forCsv(e.amountCents),
+          _csv(e.description ?? ''),
+        ].join(','),
+      );
     }
 
     final directory = await getApplicationDocumentsDirectory();
@@ -136,8 +140,9 @@ class EarningsExporter {
       }
       if (node is List) {
         if (node.isEmpty) return '[]';
-        final items =
-            node.map((e) => '$childPad${encode(e, depth + 1)}').join(',\n');
+        final items = node
+            .map((e) => '$childPad${encode(e, depth + 1)}')
+            .join(',\n');
         return '[\n$items\n$pad]';
       }
       if (node is String) {

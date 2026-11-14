@@ -66,6 +66,51 @@ void main() {
       expect(parsed.confidence, lessThan(0.9));
     });
 
+    test('ignores the earnings history tab', () {
+      final parsed = parser.parse(earningsHistoryScreen().build());
+
+      expect(parsed.hasEarningsPanel, isFalse);
+      expect(parsed.totalEarningsCents, isNull);
+      expect(parsed.fareToCollectCents, isNull);
+      expect(parsed.hasAcceptedSignal, isFalse);
+      expect(parsed.hasEndedSignal, isFalse);
+      expect(parsed.isLikelyBookingScreen, isFalse);
+      expect(parsed.signals, contains('earnings_history'));
+    });
+
+    test('reads the real Angkas trip details layout', () {
+      final parsed = parser.parse(tripDetailsScreen().build());
+
+      expect(parsed.totalEarningsCents, 5590);
+      expect(parsed.fareToCollectCents, 7600);
+      expect(parsed.paymentMethod, 'Cash');
+      expect(parsed.hasCancelledSignal, isTrue);
+      expect(parsed.isHistoricalDetail, isTrue);
+      expect(parsed.confidence, greaterThan(0.6));
+    });
+
+    test('bare Earnings heading is not a total earnings label', () {
+      final observation = ObservationBuilder()
+        ..line('Earnings', top: 176)
+        ..line('₱909.70', top: 384);
+
+      expect(parser.parse(observation.build()).totalEarningsCents, isNull);
+    });
+
+    test('normalises wallet brands to E-wallet', () {
+      for (final brand in ['GCash', 'Maya', 'PayMaya', 'Angkas Credit']) {
+        final parsed = parser.parse(earningsScreen(payment: brand).build());
+        expect(parsed.paymentMethod, 'E-wallet', reason: brand);
+      }
+    });
+
+    test('normalises card payments to Card', () {
+      for (final brand in ['Visa Card', 'Credit Card', 'Debit Card']) {
+        final parsed = parser.parse(earningsScreen(payment: brand).build());
+        expect(parsed.paymentMethod, 'Card', reason: brand);
+      }
+    });
+
     test('detects an ended booking screen', () {
       final observation = ObservationBuilder()
         ..line('Trip Completed', top: 700)
@@ -113,13 +158,15 @@ void main() {
       final observation = earningsScreen().build();
       final withoutConfidence = ScreenObservation(
         lines: observation.lines
-            .map((l) => OcrLine(
-                  text: l.text,
-                  left: l.left,
-                  top: l.top,
-                  right: l.right,
-                  bottom: l.bottom,
-                ))
+            .map(
+              (l) => OcrLine(
+                text: l.text,
+                left: l.left,
+                top: l.top,
+                right: l.right,
+                bottom: l.bottom,
+              ),
+            )
             .toList(),
         screenWidth: observation.screenWidth,
         screenHeight: observation.screenHeight,

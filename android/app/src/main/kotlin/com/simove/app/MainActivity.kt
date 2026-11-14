@@ -108,6 +108,26 @@ class MainActivity : FlutterActivity() {
                 }
 
                 "openTargetApp" -> openTargetApp(result)
+
+                "updateCaptureNotification" -> {
+                    val text = (call.arguments as? Map<*, *>)?.get("text") as? String
+                    if (text.isNullOrBlank() || !ScreenCaptureService.isRunning()) {
+                        result.success(null)
+                    } else {
+                        try {
+                            startService(
+                                Intent(this, ScreenCaptureService::class.java).apply {
+                                    action = ScreenCaptureService.ACTION_SUMMARY
+                                    putExtra(ScreenCaptureService.EXTRA_SUMMARY, text)
+                                },
+                            )
+                        } catch (_: Exception) {
+                            // The service may have just stopped.
+                        }
+                        result.success(null)
+                    }
+                }
+
                 else -> result.notImplemented()
             }
         }

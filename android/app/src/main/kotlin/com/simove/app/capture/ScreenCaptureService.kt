@@ -48,8 +48,10 @@ class ScreenCaptureService : Service() {
     companion object {
         const val ACTION_START = "com.simove.app.action.START_CAPTURE"
         const val ACTION_STOP = "com.simove.app.action.STOP_CAPTURE"
+        const val ACTION_SUMMARY = "com.simove.app.action.UPDATE_SUMMARY"
         const val EXTRA_RESULT_CODE = "result_code"
         const val EXTRA_DATA = "projection_data"
+        const val EXTRA_SUMMARY = "summary_text"
 
         private const val CHANNEL_ID = "simove_monitoring"
         private const val NOTIFICATION_ID = 4810
@@ -100,6 +102,14 @@ class ScreenCaptureService : Service() {
         when (intent?.action) {
             ACTION_STOP -> {
                 stopSelf()
+                return START_NOT_STICKY
+            }
+
+            ACTION_SUMMARY -> {
+                val summary = intent.getStringExtra(EXTRA_SUMMARY)
+                if (running && !summary.isNullOrBlank()) {
+                    updateNotification("SIMOVE is monitoring", summary)
+                }
                 return START_NOT_STICKY
             }
 

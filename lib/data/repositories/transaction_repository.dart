@@ -145,12 +145,8 @@ class TransactionRepository {
   Future<BookingTransaction?> latestActive() async {
     final rows = await _db.query(
       'transactions',
-      where:
-          'booking_status NOT IN (?, ?) AND ended_at IS NULL',
-      whereArgs: [
-        BookingState.bookingEnded.dbValue,
-        BookingState.idle.dbValue,
-      ],
+      where: 'booking_status NOT IN (?, ?) AND ended_at IS NULL',
+      whereArgs: [BookingState.bookingEnded.dbValue, BookingState.idle.dbValue],
       orderBy: 'updated_at DESC, id DESC',
       limit: 1,
     );
@@ -166,12 +162,7 @@ class TransactionRepository {
     final map = transaction.toDbMap()
       ..remove('id')
       ..['updated_at'] = DateTime.now().millisecondsSinceEpoch;
-    await _db.update(
-      'transactions',
-      map,
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    await _db.update('transactions', map, where: 'id = ?', whereArgs: [id]);
     final updated = await getById(id);
     if (updated == null) {
       throw StateError('Transaction $id disappeared during update.');

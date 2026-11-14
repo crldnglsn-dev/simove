@@ -2,17 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/theme/app_theme.dart';
-import '../../core/utils/date_utils.dart';
 import '../../core/utils/money.dart';
 import '../../data/models/booking_transaction.dart';
 import '../../state/earnings_provider.dart';
 import '../../state/monitoring_provider.dart';
 import '../../widgets/common.dart';
 import '../../widgets/transaction_tile.dart';
+import '../help/income_help_sheet.dart';
+import '../reports/expense_sheet.dart';
 import '../setup/monitoring_setup_sheet.dart';
 import '../transactions/tip_sheet.dart';
 import '../transactions/transaction_detail_sheet.dart';
 import '../transactions/transaction_form_sheet.dart';
+import 'monitoring_health_sheet.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({
@@ -46,6 +48,35 @@ class DashboardScreen extends StatelessWidget {
             _MonitoringCard(monitoring: monitoring),
             const SizedBox(height: 16),
             _HeroCard(earnings: earnings, monitoring: monitoring),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () async {
+                      final saved = await TransactionFormSheet.show(context);
+                      if (saved == true) await earnings.refresh();
+                    },
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add booking'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final saved = await showAddExpense(context);
+                      if (saved == true) await earnings.refresh();
+                    },
+                    icon: const Icon(
+                      Icons.local_gas_station_outlined,
+                      size: 18,
+                    ),
+                    label: const Text('Add expense'),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -88,6 +119,7 @@ class DashboardScreen extends StatelessWidget {
                     accent: today.netEarningsCents >= 0
                         ? AppColors.green
                         : AppColors.red,
+                    caption: 'after costs',
                   ),
                 ),
               ],
@@ -116,8 +148,7 @@ class DashboardScreen extends StatelessWidget {
                 child: EmptyState(
                   icon: Icons.receipt_long_outlined,
                   title: 'No bookings yet',
-                  message:
-                      'Start monitoring or add a ride manually to see your earnings here.',
+                  message: 'Start monitoring or add a ride manually to see your earnings here.',
                   actionLabel: 'Add booking',
                   onAction: () => TransactionFormSheet.show(context),
                 ),
@@ -179,10 +210,16 @@ class _Header extends StatelessWidget {
               ),
             ],
           ),
-          child: const Icon(
-            Icons.two_wheeler_rounded,
-            color: Color(0xFF04121F),
-            size: 24,
+          child: Image.asset(
+            'assets/logo/simove_icon_512.png',
+            width: 26,
+            height: 26,
+            fit: BoxFit.contain,
+            errorBuilder: (context, child, error) => const Icon(
+              Icons.two_wheeler_rounded,
+              color: Color(0xFF04121F),
+              size: 24,
+            ),
           ),
         ),
         const SizedBox(width: 12),
@@ -229,138 +266,199 @@ class _MonitoringCard extends StatelessWidget {
   final MonitoringProvider monitoring;
 
   Color get _color => switch (monitoring.status) {
-        MonitoringStatus.monitoring => AppColors.green,
-        MonitoringStatus.starting => AppColors.primary,
-        MonitoringStatus.needsPermission => AppColors.gold,
-        MonitoringStatus.error => AppColors.red,
-        MonitoringStatus.off => AppColors.textMuted,
-      };
+    MonitoringStatus.monitoring => AppColors.green,
+    MonitoringStatus.starting => AppColors.primary,
+    MonitoringStatus.needsPermission => AppColors.gold,
+    MonitoringStatus.error => AppColors.red,
+    MonitoringStatus.off => AppColors.textMuted,
+  };
 
-  Future<void> _toggle(BuildContext context) async {
-    if (!monitoring.isMonitoring &&
-        !monitoring.permissions.usageAccess) {
+  String get _title => switch (monitoring.status) {
+    MonitoringStatus.monitoring => 'Automatic detection is on',
+    MonitoringStatus.starting => 'Starting automatic detection…',
+    MonitoringStatus.needsPermission => 'One permission is needed',
+    MonitoringStatus.error => 'Automatic detection stopped',
+    MonitoringStatus.off => 'Automatic detection is off',
+  };
+
+  String get _detail => switch (monitoring.status) {
+    MonitoringStatus.monitoring => monitoring.statusDetail,
+    MonitoringStatus.needsPermission =>
+      'Allow usage access so SIMOVE knows when Angkas is open.',
+    MonitoringStatus.error => monitoring.lastError ?? monitoring.lastReason,
+    MonitoringStatus.off =>
+      'Turn it on so completed rides are recorded automatically.',
+    MonitoringStatus.starting => 'Waiting for Android screen capture…',
+  };
+
+  String get _buttonLabel => switch (monitoring.status) {
+    MonitoringStatus.monitoring => 'Health',
+    MonitoringStatus.starting => 'Wait…',
+    MonitoringStatus.needsPermission => 'Fix',
+    MonitoringStatus.error => 'Retry',
+    MonitoringStatus.off => 'Start',
+  };
+
+  IconData get _buttonIcon => switch (monitoring.status) {
+    MonitoringStatus.monitoring => Icons.monitor_heart_outlined,
+    MonitoringStatus.starting => Icons.hourglass_top_rounded,
+    MonitoringStatus.needsPermission => Icons.build_outlined,
+    MonitoringStatus.error => Icons.refresh_rounded,
+    MonitoringStatus.off => Icons.play_arrow_rounded,
+  };
+
+  Future<void> _primaryAction(BuildContext context) async {
+    if (!monitoring.permissions.usageAccess) {
       await showMonitoringSetup(context);
       return;
     }
-    await monitoring.toggleMonitoring();
+    if (!monitoring.isMonitoring) {
+      await monitoring.startMonitoring();
+      if (context.mounted && !monitoring.isMonitoring) {
+        await showMonitoringHealth(context);
+      }
+      return;
+    }
+    await showMonitoringHealth(context);
   }
 
   @override
   Widget build(BuildContext context) {
-    final lastRead = monitoring.lastOcrAt;
-    final subtitle = monitoring.isMonitoring && lastRead != null
-        ? 'Last Angkas screen read ${Dates.time.format(lastRead)}'
-        : monitoring.lastReason;
+    final healthy = monitoring.isMonitoring;
+    final needsAttention =
+        monitoring.status == MonitoringStatus.off ||
+        monitoring.status == MonitoringStatus.error ||
+        monitoring.status == MonitoringStatus.needsPermission;
 
     return AppCard(
       padding: const EdgeInsets.all(14),
+      onTap: () => showMonitoringHealth(context),
       gradient: LinearGradient(
         colors: [
           AppColors.surfaceElevated,
-          _color.withValues(alpha: 0.06),
+          _color.withValues(alpha: healthy ? 0.06 : 0.11),
         ],
         begin: Alignment.centerLeft,
         end: Alignment.centerRight,
       ),
-      borderColor: _color.withValues(alpha: 0.25),
-      child: Row(
+      borderColor: _color.withValues(alpha: healthy ? 0.25 : 0.4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: _color.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Container(
-                width: 9,
-                height: 9,
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
-                  color: _color,
+                  color: _color.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: _color.withValues(alpha: 0.6),
-                      blurRadius: 8,
+                ),
+                child: Center(
+                  child: Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      color: _color,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: _color.withValues(alpha: 0.6),
+                          blurRadius: 8,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _title,
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _detail,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        color: AppColors.textMuted,
+                        height: 1.35,
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
+              const SizedBox(width: 8),
+              if (monitoring.isBusy)
+                const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else if (healthy)
+                OutlinedButton.icon(
+                  onPressed: () => _primaryAction(context),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 38),
+                    padding: const EdgeInsets.symmetric(horizontal: 11),
+                  ),
+                  icon: Icon(_buttonIcon, size: 16),
+                  label: Text(
+                    _buttonLabel,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                )
+              else
+                FilledButton.icon(
+                  onPressed: () => _primaryAction(context),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 38),
+                    padding: const EdgeInsets.symmetric(horizontal: 13),
+                  ),
+                  icon: Icon(_buttonIcon, size: 17),
+                  label: Text(
+                    _buttonLabel,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          if (needsAttention) ...[
+            const SizedBox(height: 10),
+            Row(
               children: [
-                Text(
-                  monitoring.statusLabel,
-                  style: const TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                  ),
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 13,
+                  color: AppColors.gold,
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 10.5,
-                    color: AppColors.textMuted,
-                    height: 1.35,
-                  ),
-                ),
-                if (monitoring.status == MonitoringStatus.error &&
-                    monitoring.lastError != null) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    monitoring.lastError!,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: AppColors.red,
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    'Rides completed while this is off are not recorded.',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      color: AppColors.gold.withValues(alpha: 0.9),
                     ),
                   ),
-                ],
+                ),
+                const Icon(
+                  Icons.chevron_right,
+                  size: 15,
+                  color: AppColors.textMuted,
+                ),
               ],
             ),
-          ),
-          const SizedBox(width: 8),
-          if (monitoring.isBusy)
-            const SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          else
-            monitoring.isMonitoring
-                ? OutlinedButton.icon(
-                    onPressed: () => _toggle(context),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(0, 38),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                    ),
-                    icon: const Icon(Icons.stop_rounded, size: 17),
-                    label: const Text(
-                      'Stop',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                  )
-                : FilledButton.icon(
-                    onPressed: () => _toggle(context),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(0, 38),
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                    ),
-                    icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                    label: const Text(
-                      'Start',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                  ),
+          ],
         ],
       ),
     );
@@ -400,12 +498,25 @@ class _HeroCard extends StatelessWidget {
           Row(
             children: [
               const Text(
-                "TODAY'S EARNINGS",
+                "TODAY'S INCOME",
                 style: TextStyle(
                   fontSize: 10.5,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.2,
                   color: AppColors.textMuted,
+                ),
+              ),
+              const SizedBox(width: 4),
+              InkWell(
+                onTap: () => showIncomeHelp(context),
+                borderRadius: BorderRadius.circular(20),
+                child: const Padding(
+                  padding: EdgeInsets.all(4),
+                  child: Icon(
+                    Icons.info_outline,
+                    size: 14,
+                    color: AppColors.textMuted,
+                  ),
                 ),
               ),
               const Spacer(),
@@ -438,7 +549,9 @@ class _HeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '${today.bookingCount} booking${today.bookingCount == 1 ? '' : 's'} recorded today',
+            today.bookingCount == 0
+                ? 'No completed bookings yet today'
+                : '${today.bookingCount} booking${today.bookingCount == 1 ? '' : 's'} completed today',
             style: const TextStyle(
               fontSize: 11.5,
               color: AppColors.textSecondary,
@@ -455,23 +568,55 @@ class _HeroCard extends StatelessWidget {
             child: Row(
               children: [
                 _HeroStat(
+                  label: 'App earnings',
+                  value: Money.format(today.platformEarningsCents),
+                  color: AppColors.gold,
+                ),
+                const _VerticalDivider(),
+                _HeroStat(
                   label: 'Tips',
                   value: Money.format(today.tipsCents),
                   color: AppColors.green,
                 ),
                 const _VerticalDivider(),
                 _HeroStat(
-                  label: 'Fare collected',
+                  label: 'Passenger paid',
                   value: Money.format(today.fareCollectedCents),
                   color: AppColors.textPrimary,
                 ),
-                const _VerticalDivider(),
-                _HeroStat(
-                  label: 'Platform',
-                  value: Money.format(today.platformEarningsCents),
-                  color: AppColors.gold,
-                ),
               ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          InkWell(
+            onTap: () => showIncomeHelp(context),
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    size: 12,
+                    color: AppColors.textMuted,
+                  ),
+                  const SizedBox(width: 5),
+                  const Expanded(
+                    child: Text(
+                      'Passenger payment is cash you collect — not income.',
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right,
+                    size: 13,
+                    color: AppColors.textMuted,
+                  ),
+                ],
+              ),
             ),
           ),
           if (today.pendingCount > 0) ...[
@@ -484,11 +629,13 @@ class _HeroCard extends StatelessWidget {
                   color: AppColors.gold,
                 ),
                 const SizedBox(width: 5),
-                Text(
-                  '${today.pendingCount} booking${today.pendingCount == 1 ? '' : 's'} waiting for earnings',
-                  style: const TextStyle(
-                    fontSize: 10.5,
-                    color: AppColors.gold,
+                Expanded(
+                  child: Text(
+                    '${today.pendingCount} booking${today.pendingCount == 1 ? '' : 's'} still waiting for earnings',
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      color: AppColors.gold,
+                    ),
                   ),
                 ),
               ],
@@ -531,10 +678,7 @@ class _HeroStat extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 9.5,
-              color: AppColors.textMuted,
-            ),
+            style: const TextStyle(fontSize: 9.5, color: AppColors.textMuted),
           ),
         ],
       ),
@@ -610,10 +754,7 @@ class _PendingCard extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, 40),
                   ),
-                  child: const Text(
-                    'Details',
-                    style: TextStyle(fontSize: 12),
-                  ),
+                  child: const Text('Details', style: TextStyle(fontSize: 12)),
                 ),
               ),
               const SizedBox(width: 8),
@@ -623,9 +764,7 @@ class _PendingCard extends StatelessWidget {
                     context,
                     transaction: transaction,
                   ),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(0, 40),
-                  ),
+                  style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
                   child: const Text(
                     'Add earnings',
                     style: TextStyle(fontSize: 12),

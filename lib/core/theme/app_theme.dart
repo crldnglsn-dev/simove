@@ -137,8 +137,10 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.surfaceElevated,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
         labelStyle: const TextStyle(color: AppColors.textSecondary),
         hintStyle: const TextStyle(color: AppColors.textMuted),
         prefixIconColor: AppColors.textSecondary,
@@ -206,9 +208,7 @@ class AppTheme {
         backgroundColor: AppColors.surfaceSoft,
         contentTextStyle: const TextStyle(color: AppColors.textPrimary),
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       chipTheme: base.chipTheme.copyWith(
         backgroundColor: AppColors.surfaceElevated,
@@ -218,9 +218,7 @@ class AppTheme {
           color: AppColors.textSecondary,
           fontWeight: FontWeight.w600,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
       listTileTheme: const ListTileThemeData(
         iconColor: AppColors.textSecondary,

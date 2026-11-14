@@ -7,10 +7,11 @@ import '../../core/utils/money.dart';
 import '../../data/models/booking_transaction.dart';
 import '../../state/earnings_provider.dart';
 import '../../widgets/common.dart';
+import '../../widgets/period_pickers.dart';
 import '../../widgets/transaction_tile.dart';
+import 'add_menu.dart';
 import 'tip_sheet.dart';
 import 'transaction_detail_sheet.dart';
-import 'transaction_form_sheet.dart';
 
 enum _HistoryFilter { all, today, week, month }
 
@@ -24,9 +25,15 @@ class TransactionsScreen extends StatefulWidget {
 class _TransactionsScreenState extends State<TransactionsScreen> {
   final _search = TextEditingController();
   _HistoryFilter _filter = _HistoryFilter.today;
+  PeriodCustomKind? _customKind;
+  DateTime? _customStart;
+  DateTime? _customEnd;
+  String? _customLabel;
   List<BookingTransaction> _items = const [];
   bool _loading = true;
   String? _signature;
+
+  bool get _isCustom => _customStart != null && _customEnd != null;
 
   @override
   void initState() {
@@ -42,6 +49,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   (DateTime, DateTime)? get _range {
+    if (_isCustom) return (_customStart!, _customEnd!);
     final now = DateTime.now();
     return switch (_filter) {
       _HistoryFilter.all => null,
@@ -51,13 +59,53 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     };
   }
 
+  Future<void> _pickDate() async {
+    final picked = await pickReportDate(
+      context,
+      initial: _customKind == PeriodCustomKind.day ? _customStart : null,
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _customKind = PeriodCustomKind.day;
+      _customStart = Dates.startOfDay(picked);
+      _customEnd = Dates.endOfDay(picked);
+      _customLabel = Dates.dateOnly.format(picked);
+    });
+    _load();
+  }
+
+  Future<void> _pickMonth() async {
+    final picked = await pickReportMonth(
+      context,
+      initial: _customKind == PeriodCustomKind.month ? _customStart : null,
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _customKind = PeriodCustomKind.month;
+      _customStart = Dates.startOfMonth(picked);
+      _customEnd = Dates.endOfMonth(picked);
+      _customLabel = Dates.monthLabel.format(picked);
+    });
+    _load();
+  }
+
+  void _clearCustom() {
+    setState(() {
+      _customKind = null;
+      _customStart = null;
+      _customEnd = null;
+      _customLabel = null;
+    });
+    _load();
+  }
+
   Future<void> _load() async {
     if (mounted) setState(() => _loading = true);
     final range = _range;
     final items = await context.read<EarningsProvider>().history(
-          start: range?.$1,
-          end: range?.$2,
-        );
+      start: range?.$1,
+      end: range?.$2,
+    );
     if (!mounted) return;
     setState(() {
       _items = items;
@@ -103,7 +151,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             onRefresh: _load,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 100),
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 28),
               children: [
                 Row(
                   children: [
@@ -130,16 +178,17 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                         ],
                       ),
                     ),
-                    IconButton(
+                    FilledButton.icon(
                       onPressed: () async {
-                        final saved = await TransactionFormSheet.show(context);
-                        if (saved == true) await _load();
+                        final saved = await showAddMenu(context);
+                        if (saved) await _load();
                       },
-                      style: IconButton.styleFrom(
-                        backgroundColor: AppColors.surface,
-                        side: const BorderSide(color: AppColors.border),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 42),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
                       ),
-                      icon: const Icon(Icons.add, size: 20),
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Add', style: TextStyle(fontSize: 13)),
                     ),
                   ],
                 ),
@@ -159,29 +208,81 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (final filter in _HistoryFilter.values) ...[
-                        ChoiceChip(
-                          label: Text(switch (filter) {
-                            _HistoryFilter.all => 'All',
-                            _HistoryFilter.today => 'Today',
-                            _HistoryFilter.week => 'This week',
-                            _HistoryFilter.month => 'This month',
-                          }),
-                          selected: _filter == filter,
-                          onSelected: (_) {
-                            setState(() => _filter = filter);
-                            _load();
-                          },
+                Row(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            for (final filter in _HistoryFilter.values) ...[
+                              ChoiceChip(
+                                label: Text(switch (filter) {
+                                  _HistoryFilter.all => 'All',
+                                  _HistoryFilter.today => 'Today',
+                                  _HistoryFilter.week => 'This week',
+                                  _HistoryFilter.month => 'This month',
+                                }),
+                                selected: !_isCustom && _filter == filter,
+                                onSelected: (_) {
+                                  setState(() {
+                                    _filter = filter;
+                                    _customKind = null;
+                                    _customStart = null;
+                                    _customEnd = null;
+                                    _customLabel = null;
+                                  });
+                                  _load();
+                                },
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                      ],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    RangeIconButton(
+                      icon: Icons.calendar_today_outlined,
+                      tooltip: 'Pick a date',
+                      active: _customKind == PeriodCustomKind.day,
+                      onTap: _pickDate,
+                    ),
+                    const SizedBox(width: 6),
+                    RangeIconButton(
+                      icon: Icons.calendar_month_outlined,
+                      tooltip: 'Pick a month',
+                      active: _customKind == PeriodCustomKind.month,
+                      onTap: _pickMonth,
+                    ),
+                  ],
+                ),
+                if (_isCustom) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.filter_alt_outlined,
+                        size: 14,
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Showing $_customLabel',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: _clearCustom,
+                        child: const Text('Clear'),
+                      ),
                     ],
                   ),
-                ),
+                ],
                 const SizedBox(height: 18),
                 if (_loading)
                   const Padding(
@@ -199,30 +300,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                       message: _search.text.isEmpty
                           ? 'Bookings detected automatically and manual entries will appear here.'
                           : 'Try a different reference or payment method.',
-                      actionLabel:
-                          _search.text.isEmpty ? 'Add manually' : null,
-                      onAction: () => TransactionFormSheet.show(context),
+                      actionLabel: _search.text.isEmpty
+                          ? 'Add booking or expense'
+                          : null,
+                      onAction: () => showAddMenu(context),
                     ),
                   )
-                else
-                  ...[
-                    _SummaryStrip(items: items),
-                    const SizedBox(height: 14),
-                    ..._buildRows(items),
-                  ],
+                else ...[
+                  _SummaryStrip(items: items),
+                  const SizedBox(height: 14),
+                  ..._buildRows(items),
+                ],
               ],
-            ),
-          ),
-          Positioned(
-            right: 18,
-            bottom: 16,
-            child: FloatingActionButton.extended(
-              onPressed: () async {
-                final saved = await TransactionFormSheet.show(context);
-                if (saved == true) await _load();
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('Add'),
             ),
           ),
         ],
@@ -323,11 +412,7 @@ class _SummaryStrip extends StatelessWidget {
               color: AppColors.textPrimary,
             ),
           ),
-          Container(
-            width: 1,
-            height: 28,
-            color: AppColors.border,
-          ),
+          Container(width: 1, height: 28, color: AppColors.border),
           Expanded(
             child: _MiniStat(
               label: 'Tips',
@@ -335,11 +420,7 @@ class _SummaryStrip extends StatelessWidget {
               color: AppColors.green,
             ),
           ),
-          Container(
-            width: 1,
-            height: 28,
-            color: AppColors.border,
-          ),
+          Container(width: 1, height: 28, color: AppColors.border),
           Expanded(
             child: _MiniStat(
               label: 'Bookings',

@@ -18,21 +18,19 @@ class SettingsRepository {
   }
 
   Future<void> put(String key, String value) async {
-    await _db.insert(
-      'app_settings',
-      {'setting_key': key, 'setting_value': value},
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await _db.insert('app_settings', {
+      'setting_key': key,
+      'setting_value': value,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<void> putAll(Map<String, String> values) async {
     await _db.transaction((txn) async {
       for (final entry in values.entries) {
-        await txn.insert(
-          'app_settings',
-          {'setting_key': entry.key, 'setting_value': entry.value},
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
+        await txn.insert('app_settings', {
+          'setting_key': entry.key,
+          'setting_value': entry.value,
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
       }
     });
   }

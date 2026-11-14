@@ -132,20 +132,17 @@ class EarningsCalculator {
       final day = Dates.startOfDay(transaction.createdAt);
       buckets.putIfAbsent(day, () => []).add(transaction);
     }
-    final daily = buckets.entries
-        .map((entry) {
-          final total = entry.value.fold<int>(
-            0,
-            (sum, t) => sum + t.recordedEarningsCents,
-          );
-          return DailyTotal(
-            day: entry.key,
-            earningsCents: total,
-            bookingCount: entry.value.length,
-          );
-        })
-        .toList()
-      ..sort((a, b) => a.day.compareTo(b.day));
+    final daily = buckets.entries.map((entry) {
+      final total = entry.value.fold<int>(
+        0,
+        (sum, t) => sum + t.recordedEarningsCents,
+      );
+      return DailyTotal(
+        day: entry.key,
+        earningsCents: total,
+        bookingCount: entry.value.length,
+      );
+    }).toList()..sort((a, b) => a.day.compareTo(b.day));
 
     final expenseBreakdown = <String, int>{};
     for (final expense in expenses) {
